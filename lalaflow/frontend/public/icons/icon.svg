@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Full-bleed background: Android masks the icon to its own shape, so nothing important sits near the edges. -->
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fdf1d8"/><stop offset="1" stop-color="#f1d29a"/></linearGradient>
+  </defs>
+  <rect width="512" height="512" fill="url(#sky)"/>
+  <ellipse cx="256" cy="388" rx="150" ry="22" fill="#d9b277"/>
+  <rect x="146" y="226" width="220" height="160" rx="10" fill="#fff6e6" stroke="#6b4423" stroke-width="12"/>
+  <path d="M118 238 256 128l138 110" fill="#c8553a" stroke="#6b4423" stroke-width="14" stroke-linejoin="round"/>
+  <rect x="226" y="290" width="60" height="96" rx="8" fill="#2f6d8c" stroke="#6b4423" stroke-width="10"/>
+  <circle cx="272" cy="340" r="5" fill="#f2c86b"/>
+  <rect x="168" y="262" width="40" height="40" rx="4" fill="#f2c86b" stroke="#6b4423" stroke-width="8"/>
+  <rect x="304" y="262" width="40" height="40" rx="4" fill="#f2c86b" stroke="#6b4423" stroke-width="8"/>
+  <path d="M330 300c22-20 50-16 60 0-16 18-40 20-60 0z" fill="#8dbb3e" stroke="#4f6f2a" stroke-width="5"/>
+</svg>

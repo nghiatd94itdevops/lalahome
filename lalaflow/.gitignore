@@ -1,0 +1,6 @@
+.env
+node_modules/
+backend/uploads/
+frontend/dist/
+*.sql.gz
+backups/
