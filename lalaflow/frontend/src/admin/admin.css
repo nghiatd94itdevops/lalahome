@@ -116,7 +116,7 @@
 .field-wide { grid-column: 1 / -1; }
 .field-label { font-size: .8rem; font-weight: 700; color: var(--a-ink); }
 .field-hint { font-size: .76rem; color: var(--a-muted); }
-.admin-theme .field input, .admin-theme .field select, .admin-theme .field textarea, .filters select, .filter-date input, .line-item select, .line-item input, .ledger-table select, .pagination select {
+.admin-theme .field input, .admin-theme .field select, .admin-theme .field textarea, .filters select, .filter-date input, .line-item select, .line-item input, .ledger-table select, .ledger-table input, .pagination select {
   width: 100%; min-width: 0; min-height: 42px; padding: .55rem .75rem; font: inherit; color: var(--a-ink); background: #fbfcf8; border: 1px solid var(--a-line); border-radius: 4px;
 }
 .admin-theme .field textarea { min-height: auto; resize: vertical; }
@@ -185,6 +185,7 @@
 .ledger-table .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .ledger-table select { min-width: 9rem; min-height: 36px; padding: .3rem .5rem; }
 .muted-line { display: block; margin-top: .15rem; font-size: .76rem; color: var(--a-muted); }
+.request-line { display: block; }
 .badge { display: inline-block; padding: .12rem .55rem; border-radius: 999px; font-size: .75rem; font-weight: 700; white-space: nowrap; }
 .badge-ok { background: #e3f3df; color: var(--a-ok); }
 .badge-warn { background: #fbf0d9; color: var(--a-warn); }

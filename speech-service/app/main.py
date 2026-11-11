@@ -21,6 +21,7 @@ from .lalaflow_pages import create_lalaflow_pages_router
 from .lalaflow_proxy import create_lalaflow_router
 from .stt import SAMPLE_RATE, Final, Partial, StreamingTranscriber, create_recognizer, create_vad_config
 from .tts import create_tts, synthesize_wav
+from .azure_tts import AzureTtsError, synthesize_azure_wav
 
 logger = logging.getLogger("speech-service")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
@@ -100,7 +101,8 @@ app = FastAPI(title="speech-service", lifespan=lifespan)
 
 @app.get("/health")
 def health() -> dict:
-    return {"status": "ok", "asr_model": settings.asr_model_dir.name, "tts_model": settings.tts_model_dir.name}
+    return {"status": "ok", "asr_model": settings.asr_model_dir.name, "tts_model": settings.tts_model_dir.name,
+            "tts_voice": settings.azure_tts_voice if settings.azure_speech_key else "piper"}
 
 
 @app.get("/metrics")
@@ -235,9 +237,32 @@ async def speech(request: SpeechRequest) -> Response:
     if request.response_format != "wav":
         raise HTTPException(400, f"response_format {request.response_format!r} not supported, use 'wav'")
 
+    wav = await _azure_speech(text, request.speed)
+    if wav:
+        return Response(content=wav, media_type="audio/wav", headers={"X-TTS-Engine": "azure"})
     async with models["tts_lock"]:
         wav = await asyncio.to_thread(synthesize_wav, models["tts"], text, request.speed)
-    return Response(content=wav, media_type="audio/wav")
+    return Response(content=wav, media_type="audio/wav", headers={"X-TTS-Engine": "piper"})
+
+
+# After a failure (no network, quota used up, wrong key) Azure is skipped for this long, so visitors get the local
+# voice at once instead of each waiting for the same error.
+AZURE_RETRY_AFTER_SECONDS = 60
+azure_paused_until = 0.0
+
+
+async def _azure_speech(text: str, speed: float) -> bytes | None:
+    """The Azure voice's WAV, or None when it is not configured or failed and the local voice should read instead."""
+    global azure_paused_until
+    if not settings.azure_speech_key or time.monotonic() < azure_paused_until:
+        return None
+    try:
+        return await asyncio.to_thread(synthesize_azure_wav, text, speed, key=settings.azure_speech_key,
+                                       endpoint=settings.azure_tts_endpoint, voice=settings.azure_tts_voice)
+    except AzureTtsError as error:
+        azure_paused_until = time.monotonic() + AZURE_RETRY_AFTER_SECONDS
+        logger.warning("%s; reading with the local voice for the next %ss", error, AZURE_RETRY_AFTER_SECONDS)
+        return None
 
 
 class FeedbackRequest(BaseModel):

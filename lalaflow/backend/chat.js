@@ -10,7 +10,11 @@ const CHAT_DAILY_LIMIT = Number(process.env.CHAT_DAILY_LIMIT || 1000);
 
 const MAX_MESSAGE_CHARS = 500;
 const MAX_ASSISTANT_CHARS = 2000;
-const MAX_HISTORY = 10;
+// The latest messages go to the model whole. Before them only the visitor's own questions are kept: that is where
+// their name, phone, email and needs are (the assistant is told not to repeat contact details), and the long
+// answers would cost the most tokens. Without them a long chat "forgot" a phone number given a few turns earlier.
+const RECENT_MESSAGES = 10;
+const EARLIER_QUESTIONS = 20;
 const MAX_TOOL_ROUNDS = 3;
 const MAX_REPLY_TOKENS = 700;
 const OPENAI_TIMEOUT_MS = 25000;
@@ -64,6 +68,39 @@ const SEARCH_TOOL = {
         category: { type: 'string', description: 'Tên loại sản phẩm nếu khách nói rõ.' },
       },
       required: ['keywords'],
+      additionalProperties: false,
+    },
+  },
+};
+
+const QUOTE_TOOL = {
+  type: 'function',
+  function: {
+    name: 'draft_quote_request',
+    description: 'Lên phiếu yêu cầu báo giá NHÁP hiện ngay dưới câu trả lời để khách xem lại, sửa và tự bấm gửi. Phiếu chưa được gửi; bạn không gửi được. Chỉ gọi khi khách muốn báo giá và đã cho biết họ tên, số điện thoại và ít nhất một sản phẩm (đã tìm bằng search_products) kèm số lượng.',
+    parameters: {
+      type: 'object',
+      properties: {
+        customer_name: { type: 'string', description: 'Họ tên khách tự nêu.' },
+        phone: { type: 'string', description: 'Số điện thoại khách tự nêu, chép nguyên văn.' },
+        email: { type: 'string', description: 'Email nếu khách nêu.' },
+        company_name: { type: 'string', description: 'Tên công ty nếu khách nêu.' },
+        items: {
+          type: 'array',
+          description: 'Sản phẩm và số lượng khách cần.',
+          items: {
+            type: 'object',
+            properties: {
+              product_id: { type: 'number', description: 'Mã sản phẩm (id) lấy từ kết quả search_products.' },
+              quantity: { type: 'number', description: 'Số lượng khách nêu, theo đơn vị unit của sản phẩm.' },
+            },
+            required: ['product_id', 'quantity'],
+            additionalProperties: false,
+          },
+        },
+        note: { type: 'string', description: 'Nhu cầu thêm khách nêu (mục đích dùng, thời gian cần hàng, nơi giao...), ngắn gọn.' },
+      },
+      required: ['customer_name', 'phone', 'items'],
       additionalProperties: false,
     },
   },
@@ -124,10 +161,18 @@ function systemPrompt(catalog, store) {
     '4. Khách hỏi tiếp về sản phẩm đã nhắc (trạng thái, đơn vị, giá...): gọi search_products với tên sản phẩm đó rồi trả lời theo kết quả (status, unit, price). Khách hỏi thông số (kích thước, thành phần, trọng lượng, chống cháy...): gọi get_product_details. Không đoán.',
     '4b. Mã sản phẩm khách nêu (ví dụ MS8-093, H6038-1S, R-24) phải đưa nguyên văn vào keywords; không tự đoán loại sản phẩm từ mã. Không bao giờ chỉ hứa "mình sẽ tìm, chờ chút" – hãy gọi công cụ ngay.',
     '5. Mỗi khi nhắc một sản phẩm, viết đúng tên đầy đủ như trong kết quả công cụ và ghi mã ngay sau tên, ví dụ: Giấy Kraft [#2].',
-    '6. Trả lời tiếng Việt, xưng "mình", gọi khách là "bạn", thân thiện, ngắn gọn (tối đa khoảng 120 từ). Giá của mỗi sản phẩm phải chép đúng từ trường price và unit của chính sản phẩm đó (cẩn thận các tên gần giống nhau), ghi dạng 150.000đ/cuộn.',
+    '6. Trả lời tiếng Việt, xưng "mình", gọi khách là "bạn", thân thiện, ngắn gọn (tối đa khoảng 90 từ), như đang nói chuyện: văn bản trơn, KHÔNG dùng markdown (không **, không #); câu trả lời còn được đọc thành giọng nói. Liệt kê tối đa 3 sản phẩm, mỗi sản phẩm một dòng ngắn bắt đầu bằng "- ". Giá của mỗi sản phẩm phải chép đúng từ trường price và unit của chính sản phẩm đó (cẩn thận các tên gần giống nhau), ghi dạng 150.000đ/cuộn.',
     '7. Bạn KHÔNG lập báo giá chính thức, không hứa chiết khấu hay tổng tiền. Nếu khách hỏi giá cho một số lượng, chỉ được tạm tính "giá niêm yết × số lượng khách nêu" và ghi rõ đây là tạm tính. Không tự đặt số lượng hay đơn vị; đơn vị tính chỉ lấy từ trường unit.',
-    '8. Báo giá chính thức (gửi qua email hoặc điện thoại) do nhân viên LalaFlow làm: mời khách bấm nút "Báo giá" dưới thẻ sản phẩm hoặc mục "Yêu cầu báo giá" trên trang, điền tên, số điện thoại, email và số lượng. Đừng nói cửa hàng không hỗ trợ gửi báo giá.',
-    '9. Câu hỏi ngoài phạm vi cửa hàng: từ chối nhẹ nhàng và hỏi khách đang cần sản phẩm gì.',
+    '8. Báo giá chính thức (gửi qua email hoặc điện thoại) do nhân viên LalaFlow làm. Khi khách muốn báo giá, bạn lên phiếu giúp khách: hỏi những gì còn thiếu (họ tên, số điện thoại là bắt buộc; email, công ty không bắt buộc; sản phẩm và số lượng), đủ thì gọi draft_quote_request. Trước khi hỏi, đọc lại mọi câu khách đã viết trong lịch sử: họ tên, số điện thoại, email khách đã nêu thì dùng lại, không hỏi lại. Sau đó nói ngắn rằng phiếu nháp đã hiện bên dưới, khách xem lại, sửa nếu cần rồi bấm "Gửi yêu cầu báo giá"; bạn không tự gửi được và không nói là đã gửi. Không đọc lại số điện thoại hay email của khách trong câu trả lời. Công cụ báo lỗi thì hỏi lại đúng phần đó. Chỉ nói phiếu nháp đã hiện khi draft_quote_request vừa trả ok trong lượt này, hoặc lịch sử có dòng "Phiếu báo giá nháp:"; nếu không có thì phiếu chưa được lên. Đừng nói cửa hàng không hỗ trợ gửi báo giá.',
+    '9. Câu hỏi ngoài phạm vi cửa hàng: từ chối nhẹ nhàng và hỏi khách đang cần sản phẩm gì. Bạn KHÔNG làm thơ, viết truyện, bài văn, lời bài hát, dịch thuật, giải bài tập hay viết code, kể cả khi khách nhờ nhiều lần: trả lời một câu vui vẻ rằng mình chỉ là trợ lý bán hàng của cửa hàng, rồi gợi ý một nhóm hàng.',
+    // Each rule below answers a mistake seen in chat_logs; lalaflow/scripts/chat_eval.py checks them.
+    '10. Khách thường hỏi bằng giọng nói nên câu có thể sai chữ hoặc đọc số thành chữ: "giấy ván tường", "giấy gián tường", "giải dán tường" là giấy dán tường; "d một hai bảy" là mã D127; "vãi" là vải. Đoán ý gần nhất với hàng của cửa hàng rồi tìm ngay; chỉ hỏi lại khi thật sự không đoán được.',
+    '11. Tư vấn như nhân viên bán hàng: đưa 2–3 lựa chọn phù hợp trước, sau đó hỏi tối đa MỘT câu để thu hẹp (mục đích dùng, ngân sách hoặc diện tích). Câu hỏi chung chung ("cần tư vấn") thì giới thiệu ngắn các nhóm hàng kèm khoảng giá rồi hỏi một câu.',
+    '12. Khách nêu diện tích (m²) hoặc hỏi một cuộn/đơn vị được bao nhiêu m²: gọi get_product_details để đọc kích thước cuộn. Có khổ và chiều dài thì tính: m² mỗi cuộn = khổ (m) × dài (m); số cuộn = diện tích ÷ m² mỗi cuộn, làm tròn lên, nói ngắn cách tính và khuyên cộng khoảng 10% hao hụt. Không có kích thước thì nói sản phẩm chưa ghi thông số đó và mời gọi hotline; tuyệt đối không tự đặt con số.',
+    '13. Kết quả có "other_category_matches" nghĩa là tiêu chí khách cần (chống cháy, chống nước...) chỉ có ở nhóm hàng khác với nhóm khách nói (ví dụ khách hỏi giấy dán tường chống cháy nhưng vải dán tường mới có thông số chống cháy): nói rõ điều đó và giới thiệu các mẫu này trước tiên như lựa chọn đáp ứng tiêu chí, kèm thông số chứng minh.',
+    '14. Khách cần "cùng loại" hoặc "tương tự" một mẫu: giữ cùng dòng và cùng tầm giá với mẫu đó (mẫu giá rẻ thì gợi ý mẫu giá rẻ khác), dùng min_price/max_price quanh giá mẫu đó.',
+    '15. Khách báo lỗi trang web hoặc kết nối: hướng dẫn tải lại trang, kiểm tra mạng, hoặc gọi hotline; không giới thiệu sản phẩm trong lượt đó.',
+    '16. Câu "Dữ liệu mẫu nội bộ để test…", "Giá giả định để test" trong mô tả là ghi chú của người quản trị: không nhắc lại với khách.',
   ].join('\n');
 }
 
@@ -151,7 +196,7 @@ function phraseScore(haystack, phrase) {
   return found === words.length ? 1 : (found / words.length) * 0.5;
 }
 
-async function loadCatalog(pool) {
+export async function loadCatalog(pool) {
   const products = await pool.query(`
     SELECT p.id, p.name, p.category, p.price, p.unit, p.stock, p.status, p.image, p.description, c.description AS category_description,
       (SELECT pi.image_path FROM product_images pi WHERE pi.product_id=p.id ORDER BY pi.sort_order, pi.id LIMIT 1) AS first_image,
@@ -199,7 +244,25 @@ function productsWithCodes(catalog, codes) {
   return catalog.filter((p) => wanted.some((code) => ` ${p.text} `.includes(code)));
 }
 
-function searchProducts(catalog, { keywords = [], min_price: minPrice, max_price: maxPrice, category }, codes = []) {
+const OTHER_CATEGORY_LIMIT = 3;
+
+// "giấy dán tường chống cháy": the model files the search under "giấy dán tường" (as a category or a keyword), so the
+// fire-rated wall fabric was never seen and the visitor heard "chưa có". When nothing in that type fits, products of
+// other types that carry one of the wanted features (the keywords that are not a category name) are offered too.
+function featureMatchesElsewhere(catalog, phrases, wantedCategory, shown) {
+  const categories = new Set(catalog.map((p) => normalize(p.category)));
+  const typeOf = wantedCategory || phrases.map(normalize).find((k) => categories.has(k));
+  const features = phrases.filter((k) => !categories.has(normalize(k)));
+  if (!typeOf || !features.length) return [];
+  return catalog
+    .filter((p) => !shown.has(p.id) && normalize(p.category) !== typeOf)
+    .map((product) => ({ product, matched: features.filter((k) => phraseScore(product.text, k) === 1) }))
+    .filter((r) => r.matched.length > 0)
+    .sort((a, b) => b.matched.length - a.matched.length || Number(b.product.stock > 0) - Number(a.product.stock > 0))
+    .slice(0, OTHER_CATEGORY_LIMIT);
+}
+
+export function searchProducts(catalog, { keywords = [], min_price: minPrice, max_price: maxPrice, category }, codes = []) {
   const phrases = (Array.isArray(keywords) ? keywords : [keywords]).map(String).filter((k) => searchTerms(k)).slice(0, 8);
   const wantedCategory = normalize(category);
   const inBudget = (p) => (!Number.isFinite(minPrice) || p.price >= minPrice) && (!Number.isFinite(maxPrice) || p.price <= maxPrice);
@@ -227,6 +290,8 @@ function searchProducts(catalog, { keywords = [], min_price: minPrice, max_price
   const matches = [...coded, ...scored.filter((r) => !codedIds.has(r.product.id))].slice(0, MATCH_LIMIT);
   const fullMatches = coded.length + scored.filter((r) => !codedIds.has(r.product.id) && r.withinBudget && r.missing.length === 0).length;
   const shown = new Set(matches.map((r) => r.product.id));
+  const otherCategory = fullMatches > 0 ? [] : featureMatchesElsewhere(catalog, phrases, wantedCategory, shown);
+  otherCategory.forEach((r) => shown.add(r.product.id));
   const suggestions = fullMatches > 0 ? [] : catalog
     .filter((p) => !shown.has(p.id) && p.stock > 0)
     .sort((a, b) => b.sold - a.sold || b.id - a.id)
@@ -240,11 +305,17 @@ function searchProducts(catalog, { keywords = [], min_price: minPrice, max_price
         ...forModel(r.product, { matched: r.matched, missing: r.missing, within_budget: r.withinBudget }),
         ...(codedIds.has(r.product.id) ? { description: r.product.description.slice(0, DETAIL_CHARS) } : {}),
       })),
+      ...(otherCategory.length ? {
+        other_category_matches: otherCategory.map((r) => forModel(r.product, {
+          matched: r.matched,
+          note: 'Khác nhóm hàng khách nói nhưng có tiêu chí khách cần (xem matched và mô tả). Giới thiệu như lựa chọn đáp ứng tiêu chí đó.',
+        })),
+      } : {}),
       suggestions: suggestions.map((p) => forModel(p, { note: 'sản phẩm bán chạy / nổi bật của cửa hàng' })),
     },
     fallback: fullMatches
       ? { products: scored.filter((r) => r.withinBudget && r.missing.length === 0).slice(0, SUGGESTION_LIMIT).map((r) => r.product), suggested: false }
-      : { products: [...matches.map((r) => r.product), ...suggestions].slice(0, SUGGESTION_LIMIT), suggested: true },
+      : { products: [...otherCategory.map((r) => r.product), ...matches.map((r) => r.product), ...suggestions].slice(0, SUGGESTION_LIMIT), suggested: true },
   };
 }
 
@@ -273,7 +344,8 @@ function parseConversation(body) {
   const { sessionId, messages } = body || {};
   if (!SESSION_ID.test(String(sessionId || ''))) return { error: 'Phiên trò chuyện không hợp lệ' };
   if (!Array.isArray(messages) || !messages.length) return { error: 'Thiếu nội dung câu hỏi' };
-  const history = messages.slice(-MAX_HISTORY).map((m) => ({ role: m?.role, content: String(m?.content ?? '').trim() }));
+  const earlier = messages.slice(0, -RECENT_MESSAGES).filter((m) => m?.role === 'user').slice(-EARLIER_QUESTIONS);
+  const history = [...earlier, ...messages.slice(-RECENT_MESSAGES)].map((m) => ({ role: m?.role, content: String(m?.content ?? '').trim() }));
   for (const m of history) {
     if (m.role !== 'user' && m.role !== 'assistant') return { error: 'Tin nhắn không hợp lệ' };
     const limit = m.role === 'user' ? MAX_MESSAGE_CHARS : MAX_ASSISTANT_CHARS;
@@ -295,7 +367,7 @@ async function callOpenAI(messages, toolChoice = 'auto') {
       body: JSON.stringify({
         model: OPENAI_MODEL,
         messages,
-        tools: [SEARCH_TOOL, DETAILS_TOOL],
+        tools: [SEARCH_TOOL, DETAILS_TOOL, QUOTE_TOOL],
         tool_choice: toolChoice,
         max_completion_tokens: MAX_REPLY_TOKENS,
         ...(supportsTemperature ? { temperature: 0.3 } : {}),
@@ -332,12 +404,73 @@ function productDetails(catalog, { product_id: productId }) {
   return { ...forModel(p), description: p.description.slice(0, DETAIL_CHARS) };
 }
 
+const QUOTE_MAX_ITEMS = 10;
+const QUOTE_MAX_QUANTITY = 1000000;
+const QUOTE_NAME_CHARS = 100;
+const QUOTE_NOTE_CHARS = 500;
+const PHONE_DIGITS = /^\+?\d{9,12}$/;
+const EMAIL_ADDRESS = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// A quote form the model filled in from the conversation, checked against the real catalogue. It only ever reaches
+// the visitor as a draft: they review it and send it themselves through POST /quote-requests.
+export function draftQuote(catalog, args) {
+  const name = String(args.customer_name || '').trim().slice(0, QUOTE_NAME_CHARS);
+  const phone = String(args.phone || '').trim();
+  const email = String(args.email || '').trim();
+  const missing = [];
+  if (!name) missing.push('họ tên');
+  if (!PHONE_DIGITS.test(phone.replace(/[\s.-]/g, ''))) missing.push('số điện thoại hợp lệ');
+  const byId = new Map(catalog.map((p) => [p.id, p]));
+  const items = [];
+  for (const item of (Array.isArray(args.items) ? args.items : []).slice(0, QUOTE_MAX_ITEMS)) {
+    const product = byId.get(Number(item?.product_id));
+    const quantity = Number(item?.quantity);
+    if (!product) return { result: { error: `Không có sản phẩm mã ${item?.product_id}; hãy tìm lại bằng search_products.` } };
+    if (!Number.isInteger(quantity) || quantity < 1 || quantity > QUOTE_MAX_QUANTITY) {
+      return { result: { error: `Số lượng của ${product.name} phải là số nguyên từ 1; hỏi lại khách.` } };
+    }
+    const line = { productId: product.id, name: product.name, unit: product.unit, price: product.price, status: product.status, quantity };
+    const index = items.findIndex((i) => i.productId === product.id);
+    if (index >= 0) items[index] = line;
+    else items.push(line);
+  }
+  if (!items.length) missing.push('sản phẩm và số lượng');
+  if (missing.length) return { result: { error: `Chưa lên được phiếu, còn thiếu: ${missing.join(', ')}. Hỏi khách phần này.` } };
+  return {
+    result: { ok: true, status: 'Phiếu NHÁP đã hiện cho khách, CHƯA gửi. Nhắc khách xem lại và bấm "Gửi yêu cầu báo giá".' },
+    draft: {
+      customerName: name,
+      phone,
+      email: EMAIL_ADDRESS.test(email) ? email : '',
+      companyName: String(args.company_name || '').trim().slice(0, QUOTE_NAME_CHARS),
+      items,
+      note: String(args.note || '').trim().slice(0, QUOTE_NOTE_CHARS),
+    },
+  };
+}
+
+// The phone and email the visitor typed, restated once next to the instructions: a small model misses a number buried
+// in a long question several turns back and asks for it again. Only regex matches go in, so a visitor cannot put
+// instructions into this note; the values were already in the visitor's own messages sent to the model.
+function contactsGivenNote(history) {
+  const said = history.filter((m) => m.role === 'user').map((m) => m.content).join('\n');
+  const phone = (said.match(PHONE_IN_TEXT) || []).at(-1);
+  const email = (said.match(EMAIL_IN_TEXT) || []).at(-1);
+  const known = [phone && `số điện thoại ${phone.trim()}`, email && `email ${email}`].filter(Boolean);
+  if (!known.length) return [];
+  return [{
+    role: 'system',
+    content: `Trong cuộc trò chuyện này khách đã tự nêu: ${known.join('; ')}. Dùng đúng các giá trị này khi gọi draft_quote_request, không hỏi lại; vẫn không đọc lại chúng trong câu trả lời.`,
+  }];
+}
+
 async function answer(pool, history, store) {
   const catalog = await loadCatalog(pool);
-  const messages = [{ role: 'system', content: systemPrompt(catalog, store) }, ...history];
+  const messages = [{ role: 'system', content: systemPrompt(catalog, store) }, ...contactsGivenNote(history), ...history];
   // Any active product can get a card (the reply may name one from an earlier turn); all of them are real data.
   const seen = new Map(catalog.map((p) => [p.id, p]));
   let fallback = { products: [], suggested: true };
+  let quoteDraft = null;
   const searches = [];
   const usage = { prompt: 0, completion: 0 };
   const codes = productCodes(history.filter((m) => m.role === 'user').slice(-1)[0]?.content || '');
@@ -358,13 +491,20 @@ async function answer(pool, history, store) {
       continue;
     }
     if (!calls.length || round === MAX_TOOL_ROUNDS) {
-      return { text: String(message.content || '').trim(), seen, fallback, searches, usage };
+      return { text: String(message.content || '').trim(), seen, fallback, searches, usage, quoteDraft };
     }
     messages.push({ role: 'assistant', content: message.content || null, tool_calls: calls });
     for (const call of calls) {
       let args = {};
       try { args = JSON.parse(call.function?.arguments || '{}'); } catch { args = {}; }
       const name = call.function?.name;
+      if (name === 'draft_quote_request') {
+        const { result, draft } = draftQuote(catalog, args);
+        if (draft) quoteDraft = draft;
+        searches.push({ quote: result.ok ? 'drafted' : result.error });
+        messages.push({ role: 'tool', tool_call_id: call.id, content: JSON.stringify(result) });
+        continue;
+      }
       const { result, fallback: closest } = name === 'search_products' ? searchProducts(catalog, args, codes)
         : name === 'get_product_details' ? { result: productDetails(catalog, args), fallback }
           : { result: { error: 'Công cụ không tồn tại' }, fallback };
@@ -456,6 +596,20 @@ export function toReply(text, seen, fallback = { products: [], suggested: true }
   return { reply, products: fallback.products.map(toCard), suggested: fallback.suggested };
 }
 
+// chat_logs keeps the conversation for the owner, not the visitor's contact details: phone numbers and email
+// addresses are cut down to a few characters (the full ones live only in a quote request the visitor sent).
+const PHONE_IN_TEXT = /(?<!\d)(?:\+?84[ .-]?|0)\d[\d .-]{6,12}\d(?!\d)/g;
+const EMAIL_IN_TEXT = /([A-Za-z0-9._%+-])[A-Za-z0-9._%+-]*@([A-Za-z0-9.-]+\.[A-Za-z]{2,})/g;
+export function maskContacts(text) {
+  if (text == null) return text;
+  return String(text)
+    .replace(EMAIL_IN_TEXT, '$1…@$2')
+    .replace(PHONE_IN_TEXT, (match) => {
+      const digits = match.replace(/\D/g, '');
+      return digits.length >= 9 ? `${digits.slice(0, 2)}…${digits.slice(-3)}` : match;
+    });
+}
+
 const hashIp = (ip) => crypto.createHash('sha256').update(String(ip || '')).digest('hex').slice(0, 16);
 
 export async function createChatTables(pool) {
@@ -502,11 +656,15 @@ export function registerChatRoutes(app, { pool, authMiddleware, adminOnly }) {
       const store = await loadStore(pool);
       const result = await answer(pool, parsed.history, store);
       let reply = toReply(result.text || 'Xin lỗi, mình chưa tìm được câu trả lời phù hợp. Bạn mô tả rõ hơn nhu cầu nhé?', result.seen, result.fallback);
-      const leak = replyLeaks(reply.reply, [store.company.email].filter(Boolean));
+      // Repeating an address the visitor typed into this conversation (for their quote) reveals nothing; any other
+      // address in a reply is still treated as a leak.
+      const visitorEmails = parsed.history.filter((m) => m.role === 'user').flatMap((m) => m.content.match(EMAIL_IN_TEXT) || []);
+      const leak = replyLeaks(reply.reply, [store.company.email, ...visitorEmails].filter(Boolean));
       if (leak) {
         console.warn(`Chat reply withheld (matched ${leak}) session=${parsed.sessionId.slice(0, 8)}`);
         reply = { reply: REFUSAL, products: [], suggested: false };
       }
+      if (result.quoteDraft && !leak) reply = { ...reply, quoteDraft: result.quoteDraft };
       Object.assign(log, {
         answer: reply.reply,
         productIds: reply.products.map((p) => p.id).join(',') || null,
@@ -522,7 +680,7 @@ export function registerChatRoutes(app, { pool, authMiddleware, adminOnly }) {
     try {
       await pool.query(
         'INSERT INTO chat_logs (session_id,question,answer,product_ids,searches,model,prompt_tokens,completion_tokens,error,ip_hash) VALUES (?,?,?,?,?,?,?,?,?,?)',
-        [parsed.sessionId, question, log.answer, log.productIds, log.searches, OPENAI_MODEL, log.usage.prompt, log.usage.completion, log.error, hashIp(req.ip)],
+        [parsed.sessionId, maskContacts(question), maskContacts(log.answer), log.productIds, maskContacts(log.searches), OPENAI_MODEL, log.usage.prompt, log.usage.completion, log.error, hashIp(req.ip)],
       );
     } catch (err) {
       console.error('Chat log error:', err.message);

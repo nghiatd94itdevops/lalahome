@@ -139,7 +139,7 @@ export function TabBar({ company, chatOpen, onChat, contactOpen, onContact }) {
     <nav className="tab-bar" aria-label="Thanh điều hướng điện thoại">
       <NavLink to="/" end className="tab"><TabIcon name="home" /><span>Trang chủ</span></NavLink>
       <NavLink to="/san-pham" className="tab"><TabIcon name="products" /><span>Sản phẩm</span></NavLink>
-      <button type="button" className="tab" aria-expanded={chatOpen} aria-controls="chat-panel" onClick={onChat}><Mimi className="tab-mimi" /><span>Trợ lý AI</span></button>
+      <button type="button" className="tab" data-mimi-anchor aria-expanded={chatOpen} aria-controls="chat-panel" onClick={onChat}><Mimi className="tab-mimi" /><span>Trợ lý AI</span></button>
       <NavLink to="/yeu-cau-bao-gia" className="tab"><TabIcon name="quote" /><span>Báo giá</span></NavLink>
       {hasContact && <button type="button" className="tab" aria-expanded={contactOpen} aria-controls="contact-channels" onClick={onContact}><TabIcon name="contact" /><span>Liên hệ</span></button>}
     </nav>

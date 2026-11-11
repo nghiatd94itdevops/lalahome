@@ -8,6 +8,7 @@ export const MENU = [
       { tab: "content", label: "Thông tin công ty", title: "Nội dung công ty", perm: "content.manage" },
       { tab: "activities_create", label: "Đăng hoạt động", title: "Đăng hoạt động", perm: "content.activities_create" },
       { tab: "activities_list", label: "Danh sách hoạt động", title: "Danh sách hoạt động", perm: ["content.activities_edit", "content.activities_status"] },
+      { tab: "spoken_words", label: "Từ điển giọng đọc", title: "Từ điển giọng đọc", perm: "content.manage" },
     ],
   },
   {

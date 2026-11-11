@@ -400,12 +400,18 @@ export function QuotationList() {
   );
 }
 
+// A request drafted by the assistant can list several products (`items`); a form request has one product column.
+const requestLines = (r) => (r.items?.length
+  ? r.items
+  : [{ productId: r.product_id, name: r.product_name, quantity: r.quantity, unit: "" }]);
+const linesText = (r) => requestLines(r).map((line) => `${line.name || "Chưa xác định"} ×${line.quantity}${line.unit ? ` ${line.unit}` : ""}`).join("; ");
+
 export function QuoteRequests() {
   const { user, can, run, notify, goTo, exportExcel, refreshAlerts } = useAdmin();
   const list = useApi("/quote-requests");
   const [filters, setFilters] = useState({ query: "", status: "" });
   const all = list.data || [];
-  const rows = all.filter((r) => includesText(filters.query, r.customer_name, r.phone, r.email, r.product_name, r.company_name) && (!filters.status || r.status === filters.status));
+  const rows = all.filter((r) => includesText(filters.query, r.customer_name, r.phone, r.email, linesText(r), r.company_name) && (!filters.status || r.status === filters.status));
   const paged = usePaged(rows, JSON.stringify(filters));
   const newCount = all.filter((r) => r.status === "Mới").length;
 
@@ -439,7 +445,7 @@ export function QuoteRequests() {
     putDraft("quotation", {
       note: `Tạo từ yêu cầu website #${row.id} của ${row.customer_name}.`,
       form: { customerId: String(customerId), notes: row.message || "", quoteRequestId: row.id },
-      lines: [{ productId: row.product_id ? String(row.product_id) : "", quantity: String(row.quantity || 1), unitPrice: "" }],
+      lines: requestLines(row).map((line) => ({ productId: line.productId ? String(line.productId) : "", quantity: String(line.quantity || 1), unitPrice: "" })),
     });
     goTo("quotations_create");
   }
@@ -454,7 +460,7 @@ export function QuoteRequests() {
     columns: [
       { header: "Mã", key: "id", width: 8 }, { header: "Ngày gửi", value: (r) => excelDate(r.created_at), width: 22 }, { header: "Khách hàng", key: "customer_name", width: 24 },
       { header: "Công ty", key: "company_name", width: 24 }, { header: "Điện thoại", key: "phone", width: 16 }, { header: "Email", key: "email", width: 26 },
-      { header: "Sản phẩm", key: "product_name", width: 24 }, { header: "Số lượng", key: "quantity", width: 10, number: true }, { header: "Nội dung", key: "message", width: 40 },
+      { header: "Sản phẩm", value: linesText, width: 40 }, { header: "Nguồn", value: (r) => (r.source === "chat" ? "Trợ lý AI" : "Form"), width: 12 }, { header: "Nội dung", key: "message", width: 40 },
       { header: "Trạng thái", key: "status", width: 14 }, { header: "Nhân viên phụ trách", key: "assigned_employee", width: 20 }, { header: "Mã CRM", key: "customer_id", width: 10 },
       { header: "Mã báo giá", key: "quotation_id", width: 18 }, { header: "Ngày phản hồi", value: (r) => excelDate(r.responded_at), width: 22 },
     ],
@@ -479,7 +485,11 @@ export function QuoteRequests() {
                 <tr key={r.id}>
                   <td><strong>{r.customer_name}</strong><span className="muted-line">{r.company_name || ""} · {new Date(r.created_at).toLocaleString("vi-VN")}</span></td>
                   <td>{r.phone}<span className="muted-line">{r.email || "Chưa có email"}</span></td>
-                  <td>{r.product_name || "Chưa xác định"}<span className="muted-line">SL: {r.quantity} · {r.message || "Không ghi chú"}</span></td>
+                  <td>
+                    {r.source === "chat" && <Badge tone="warn">Từ trợ lý AI</Badge>}
+                    {requestLines(r).map((line) => <span key={line.productId || "none"} className="request-line">{line.name || "Chưa xác định"} <strong>×{line.quantity}{line.unit ? ` ${line.unit}` : ""}</strong></span>)}
+                    <span className="muted-line">{r.message || "Không ghi chú"}</span>
+                  </td>
                   <td>
                     {r.customer_id ? <><Badge tone="ok">Đã liên kết</Badge><span className="muted-line">{r.crm_customer_name}</span></>
                       : r.customer_matches?.length ? <><Badge tone="warn">Tìm thấy {r.customer_matches.length}</Badge><span className="muted-line">{r.customer_matches.map((m) => m.name).join(", ")}</span></>

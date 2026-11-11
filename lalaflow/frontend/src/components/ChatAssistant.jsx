@@ -4,6 +4,7 @@ import { money } from "../api.js";
 import { PRODUCT_STATUS_TONE } from "../content.js";
 import { Mimi, MimiFace } from "./Mimi.jsx";
 import { ProductImage } from "./Cards.jsx";
+import QuoteDraftCard from "./QuoteDraftCard.jsx";
 import { PHONE_QUERY } from "./Shell.jsx";
 
 const MAX_CHARS = 500;
@@ -49,6 +50,20 @@ export function ChatProducts({ message, onPick }) {
   );
 }
 
+// A quote draft under an answer. Only the newest draft can be sent; one replaced by a later draft is shown as old.
+export function MessageQuote({ assistant, index }) {
+  const message = assistant.messages[index];
+  const newest = assistant.messages.findLastIndex((m) => m.quoteDraft);
+  return (
+    <QuoteDraftCard
+      draft={message.quoteDraft}
+      sentId={message.quoteSent?.id}
+      superseded={index !== newest}
+      onSubmit={(form) => assistant.submitQuote(index, form)}
+    />
+  );
+}
+
 // The greeting, first-question suggestions and the conversation. `renderProducts(message, index)` draws what goes
 // under an answer that found products.
 export function ChatThread({ assistant, listRef, renderProducts }) {
@@ -64,6 +79,7 @@ export function ChatThread({ assistant, listRef, renderProducts }) {
         <div key={i} className={`chat-turn is-${m.role}`}>
           {m.role === "assistant" ? <AssistantSays>{m.content}</AssistantSays> : <p className={`chat-bubble is-${m.role}`}>{m.content}</p>}
           {m.products?.length > 0 && renderProducts(m, i)}
+          {m.quoteDraft && <MessageQuote assistant={assistant} index={i} />}
         </div>
       ))}
       {assistant.busy && <AssistantSays typing />}
@@ -124,7 +140,7 @@ export function ChatComposer({ assistant, inputRef }) {
   );
 }
 
-export default function ChatAssistant({ open, onOpenChange, onExpand, assistant }) {
+export default function ChatAssistant({ open, onOpenChange, onExpand, onTalk, assistant }) {
   const listRef = useRef(null);
   const inputRef = useRef(null);
   useFollowLatest(listRef, assistant, open);
@@ -152,7 +168,7 @@ export default function ChatAssistant({ open, onOpenChange, onExpand, assistant 
 
   return (
     <>
-      <button type="button" className="chat-launcher" aria-expanded={open} aria-controls="chat-panel" onClick={() => onOpenChange(!open)}>
+      <button type="button" className="chat-launcher" data-mimi-anchor aria-expanded={open} aria-controls="chat-panel" onClick={() => onOpenChange(!open)}>
         <Mimi className="chat-launcher-mimi" />
         <span>{open ? "Đóng" : "Trợ lý AI"}</span>
       </button>
@@ -167,6 +183,7 @@ export default function ChatAssistant({ open, onOpenChange, onExpand, assistant 
             <div className="chat-head-text">
               <strong>Trợ lý AI</strong>
             </div>
+            <button type="button" className="chat-head-action chat-talk" onClick={onTalk} title="Mở màn hình nói chuyện trực tiếp với Mimi">🎤 Nói với Mimi</button>
             <ReadAloudButton assistant={assistant} />
             <button type="button" className="chat-head-icon chat-expand" aria-label="Mở rộng toàn màn hình" title="Mở rộng toàn màn hình" onClick={onExpand}>
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h6v6M10 20H4v-6M20 4l-7 7M4 20l7-7" /></svg>

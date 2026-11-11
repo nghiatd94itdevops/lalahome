@@ -11,7 +11,10 @@ const THINK_BEFORE_SEARCH_MS = 1500;
 // No typing, speaking or answer for this long while the assistant is shown: she dozes off.
 const DOZE_AFTER_MS = 60000;
 const THANKS = /c[aả]m [oơ]n|c[aá]m [oơ]n|thank/i;
-const HISTORY_SENT = 10;
+// Same shape the backend keeps (lalaflow/backend/chat.js): the latest messages whole, and before them only the
+// visitor's own questions, which hold the name, phone and email they gave earlier.
+const RECENT_MESSAGES = 10;
+const EARLIER_QUESTIONS = 20;
 const STORAGE_KEY = "lalaflow.chat";
 
 const newSessionId = () => (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`);
@@ -36,13 +39,24 @@ function save(state) {
 }
 
 // The assistant's earlier picks travel back as [#id] markers so a follow-up like "cái đó còn hàng không?" can be
-// looked up again instead of guessed.
-const toApiMessage = (m) => ({
-  role: m.role,
-  content: m.role === "assistant" && m.products?.length
-    ? `${m.content}\nSản phẩm đã giới thiệu: ${m.products.map((p) => `${p.name} [#${p.id}]`).join(", ")}`
-    : m.content,
-});
+// looked up again instead of guessed; a quote draft travels back with whether the visitor sent it, so the model
+// never claims a draft went out.
+function toApiMessage(m) {
+  if (m.role !== "assistant") return { role: m.role, content: m.content };
+  const notes = [m.content];
+  if (m.products?.length) notes.push(`Sản phẩm đã giới thiệu: ${m.products.map((p) => `${p.name} [#${p.id}]`).join(", ")}`);
+  if (m.quoteDraft) {
+    const lines = m.quoteDraft.items.map((item) => `${item.name} [#${item.productId}] × ${item.quantity} ${item.unit}`).join(", ");
+    notes.push(`Phiếu báo giá nháp: ${lines}. ${m.quoteSent ? `Khách ĐÃ GỬI phiếu này (mã yêu cầu #${m.quoteSent.id}).` : "Khách CHƯA gửi phiếu này."}`);
+  }
+  return { role: "assistant", content: notes.join("\n") };
+}
+
+function historyForApi(messages) {
+  const conversation = messages.filter((m) => m.role !== "notice");
+  const earlier = conversation.slice(0, -RECENT_MESSAGES).filter((m) => m.role === "user").slice(-EARLIER_QUESTIONS);
+  return [...earlier, ...conversation.slice(-RECENT_MESSAGES)].map(toApiMessage);
+}
 
 // Mimi's reaction to an answer: thanked → love, nothing found → sad, only suggestions → wink, a match → happy.
 function answerMoment({ ok, products, suggested, question }) {
@@ -54,7 +68,7 @@ function answerMoment({ ok, products, suggested, question }) {
 
 // What Mimi shows: a short moment (greeting, a reaction to the answer) wins for MOMENT_MS, otherwise the chat's
 // current activity.
-function useMimiMood({ active, busy, listening }) {
+function useMimiMood({ active, busy, listening, speaking }) {
   const [moment, setMoment] = useState(null);
   const [searching, setSearching] = useState(false);
   const [dozing, setDozing] = useState(false);
@@ -79,14 +93,15 @@ function useMimiMood({ active, busy, listening }) {
 
   useEffect(() => {
     setDozing(false);
-    if (!active || busy || listening) return undefined;
+    if (!active || busy || listening || speaking) return undefined;
     const timer = setTimeout(() => setDozing(true), DOZE_AFTER_MS);
     return () => clearTimeout(timer);
-  }, [active, busy, listening, moment]);
+  }, [active, busy, listening, speaking, moment]);
 
   let state = "idle";
   if (dozing) state = "sleep";
   if (listening) state = "listening";
+  if (speaking) state = "talking";
   if (moment) state = moment.state;
   if (busy) state = searching ? "searching" : "thinking";
   return { state, flash };
@@ -94,7 +109,9 @@ function useMimiMood({ active, busy, listening }) {
 
 // `active`: the panel is open or the full page is shown. When it goes false the mic and speech stop, dropping a
 // half-spoken question instead of sending it.
-export function useAssistantChat({ active }) {
+// `conversing`: the face-to-face Mimi screen is open. Every answer is read aloud and, unless the visitor paused,
+// the mic opens again as soon as Mimi finishes speaking, so the visitor can just talk back.
+export function useAssistantChat({ active, conversing = false }) {
   const [chat, setChat] = useState(loadSaved);
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
@@ -104,11 +121,19 @@ export function useAssistantChat({ active }) {
   const speaker = useSpeaker();
   const voice = useVoiceInput((question) => send(question, { spoken: true }));
   const voiceActive = voice.state !== "idle";
-  const mood = useMimiMood({ active, busy, listening: voiceActive || draft.trim().length > 0 });
+  const mood = useMimiMood({ active, busy, listening: voiceActive || draft.trim().length > 0, speaking: speaker.speaking });
+  const [paused, setPaused] = useState(false);
+  // Read after an answer's speech ends, which can be long after the render that started it.
+  const handsFree = useRef(false);
+  handsFree.current = conversing && !paused;
 
   useEffect(() => {
     save(chat);
   }, [chat]);
+
+  useEffect(() => {
+    if (conversing) setPaused(false);
+  }, [conversing]);
 
   const { cancel: cancelListening } = voice;
   const { silence } = speaker;
@@ -126,17 +151,38 @@ export function useAssistantChat({ active }) {
     setChat({ ...chat, messages: asked });
     setDraft("");
     setBusy(true);
-    const history = asked.filter((m) => m.role !== "notice").slice(-HISTORY_SENT).map(toApiMessage);
+    const history = historyForApi(asked);
     const { ok, data } = await postJson("/chat", { sessionId: chat.sessionId, messages: history }).catch(() => ({ ok: false, data: {} }));
     setBusy(false);
     mood.flash(answerMoment({ ok, products: data.products || [], suggested: Boolean(data.suggested), question }));
     const next = ok
-      ? { role: "assistant", content: data.reply, products: data.products || [], suggested: Boolean(data.suggested) }
+      ? { role: "assistant", content: data.reply, products: data.products || [], suggested: Boolean(data.suggested), ...(data.quoteDraft ? { quoteDraft: data.quoteDraft } : {}) }
       : { role: "notice", content: data.error || "Không kết nối được trợ lý, bạn thử lại sau nhé." };
     setChat((current) => ({ ...current, messages: [...current.messages, next] }));
     const autoRead = spoken && !readAloudChosen.current;
     if (autoRead) setReadAloud(true);
-    if (ok && (readAloud || autoRead)) speaker.say(data.reply);
+    if (ok && (readAloud || autoRead || handsFree.current)) speakThenListen(data.reply);
+  }
+
+  // In hands-free mode the mic opens only when the speech was heard to the end: a pause, a closed screen or a
+  // blocked or failed speech leaves it off, so the page never starts recording on its own after something went wrong.
+  async function speakThenListen(text) {
+    const outcome = await speaker.say(text);
+    if (outcome === "ended" && handsFree.current) voice.start();
+    return outcome;
+  }
+
+  function pause() {
+    setPaused(true);
+    voice.cancel();
+    speaker.silence();
+  }
+
+  // Called from a tap, so the mic is allowed to start.
+  function resume() {
+    setPaused(false);
+    speaker.silence();
+    voice.start();
   }
 
   // Turning the speaker on also reads the answer already on screen, so the visitor hears something right away.
@@ -155,12 +201,35 @@ export function useAssistantChat({ active }) {
     return voice.start();
   }
 
+  // Only ever called from the visitor's own tap on a draft: the assistant drafts, the visitor sends.
+  async function submitQuote(index, form) {
+    const body = {
+      source: "chat",
+      customerName: form.customerName,
+      phone: form.phone,
+      email: form.email,
+      companyName: form.companyName,
+      message: form.note,
+      items: form.items.map((item) => ({ productId: item.productId, quantity: item.quantity })),
+    };
+    const { ok, data } = await postJson("/quote-requests", body)
+      .catch((error) => ({ ok: false, data: { error: `Chưa kết nối được máy chủ (${error.message}). Phiếu vẫn được giữ để bạn gửi lại.` } }));
+    if (!ok) return { error: data.error || "Không gửi được yêu cầu, bạn thử lại nhé." };
+    setChat((current) => ({
+      ...current,
+      messages: current.messages.map((m, i) => (i === index ? { ...m, quoteDraft: form, quoteSent: { id: data.id } } : m)),
+    }));
+    mood.flash("success");
+    return { id: data.id };
+  }
+
   function restart() {
     setChat({ sessionId: newSessionId(), messages: [] });
   }
 
   return {
-    messages: chat.messages, draft, setDraft, busy, send, restart, readAloud, toggleReadAloud,
+    messages: chat.messages, draft, setDraft, busy, send, restart, readAloud, toggleReadAloud, submitQuote,
     voice, voiceActive, micAvailable: canListen(), toggleMic, speaker, mimiState: mood.state,
+    conversation: { paused, pause, resume, speakThenListen },
   };
 }

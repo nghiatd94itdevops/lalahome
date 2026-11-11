@@ -454,6 +454,33 @@ p { margin: 0; }
 .chat-voice-error { margin: 0; padding: .45rem .9rem; font-size: .85rem; color: var(--out); background: #fdecea; border-top: 1px solid #e9b8b0; }
 .chat-fineprint { margin: 0; padding: 0 .9rem .6rem; font-size: .75rem; color: var(--ink-soft); background: var(--paper); }
 
+/* Quote request the assistant drafted (components/QuoteDraftCard.jsx), under its answer. */
+.quote-draft { display: grid; gap: .55rem; margin-left: calc(30px + .4rem); padding: .8rem .85rem .7rem; background: #fffdf8; border: 2px dashed var(--door); border-radius: 16px; font-size: .9rem; }
+.quote-draft-title { margin: 0; font-family: var(--font-sign); font-weight: 800; font-size: 1.02rem; color: var(--door-deep); }
+.quote-draft-title span { margin-left: .3rem; padding: .05rem .5rem; font-size: .72rem; color: #fff; background: var(--wait); border-radius: 999px; vertical-align: middle; }
+.quote-draft-hint, .quote-draft-fine { margin: 0; color: var(--ink-soft); font-size: .8rem; line-height: 1.4; }
+.quote-draft-fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 150px), 1fr)); gap: .45rem .6rem; }
+.quote-draft label { display: grid; gap: .15rem; font-weight: 600; font-size: .8rem; color: var(--wood-dark); }
+.quote-draft input, .quote-draft textarea { min-width: 0; padding: .4rem .55rem; font: inherit; font-size: 16px; color: var(--ink); background: #fff; border: 1.5px solid var(--wood-light); border-radius: 10px; }
+.quote-draft textarea { resize: vertical; }
+.quote-draft-items { list-style: none; margin: 0; padding: 0; display: grid; gap: .35rem; }
+.quote-draft-items li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: .5rem; padding: .4rem .5rem; background: #fff; border: 1.5px solid var(--wood-light); border-radius: 12px; }
+.quote-draft-product { display: grid; min-width: 0; line-height: 1.3; }
+.quote-draft-product strong { font-size: .88rem; overflow-wrap: anywhere; }
+.quote-draft-product small { color: var(--ink-soft); }
+.quote-draft .quote-draft-quantity { display: flex; align-items: center; gap: .3rem; font-weight: 500; color: var(--ink-soft); }
+.quote-draft-quantity input { width: 4.6rem; text-align: right; }
+.quote-draft-remove { width: 32px; height: 32px; font-size: 1.2rem; line-height: 1; color: var(--out); background: none; border: 1.5px solid transparent; border-radius: 50%; cursor: pointer; }
+.quote-draft-remove:hover { border-color: var(--out); }
+.quote-draft-problem { margin: 0; padding: .35rem .6rem; color: var(--out); background: #fdecea; border-radius: 10px; font-size: .85rem; }
+.quote-draft-send { justify-self: start; min-height: 44px; font-size: 1rem; }
+.quote-draft.is-sent { border-style: solid; border-color: var(--ok); }
+.quote-draft.is-sent .quote-draft-title { color: var(--ok); }
+.quote-draft-summary { margin: 0; padding-left: 1.1rem; font-size: .85rem; }
+.quote-draft-old { margin: 0 0 0 calc(30px + .4rem); font-size: .8rem; font-style: italic; color: var(--ink-soft); }
+.mimi-talk-quote { width: min(640px, 100%); }
+.mimi-talk-quote .quote-draft, .mimi-talk-quote .quote-draft-old { margin-left: 0; text-align: left; }
+
 /* Full-page assistant (/tro-ly): the site is exactly one screen tall, so the conversation and the product shelf
    each scroll on their own instead of the page. */
 .site.is-assistant-page { height: 100dvh; display: flex; flex-direction: column; }
@@ -497,7 +524,7 @@ p { margin: 0; }
   .assistant-head-mimi { width: 48px; }
   .assistant-head .chat-head-text span { display: none; }
   /* The panel is already full screen on a phone. */
-  .assistant-shelf, .shelf-pick, .chat-expand { display: none; }
+  .assistant-shelf, .assistant-shelf.is-empty, .shelf-pick, .chat-expand { display: none; }
   .answer-inline-products { display: grid; gap: .45rem; margin-left: calc(30px + .4rem); }
 }
 
@@ -673,3 +700,63 @@ p { margin: 0; }
 .app-reload:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--wood-dark); }
 /* Same breakpoint as .menu-toggle: from here the nav collapses below the header row, so the buttons stay on top. */
 @media (max-width: 820px) { .header-actions { order: 0; } }
+
+/* Face-to-face Mimi, opened by the cover's Welcome door (/lalaflow/?mimi=1): she stands in the middle and talks. */
+.mimi-talk {
+  position: fixed; inset: 0; z-index: 55; display: grid; grid-template-rows: auto minmax(0, 1fr) auto;
+  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+  background: radial-gradient(ellipse at 50% 38%, #fffaf0 0%, var(--cream) 55%, var(--paper-deep) 100%);
+}
+.mimi-talk-top { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: .75rem 1rem 0; }
+.mimi-talk-link, .mimi-talk-browse { padding: .35rem .2rem; font-family: var(--font-sign); font-weight: 700; font-size: 1rem; color: var(--door-deep); background: none; border: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.mimi-talk-link:disabled { visibility: hidden; }
+.mimi-talk-close { display: grid; place-items: center; width: 44px; height: 44px; font-size: 1.7rem; line-height: 1; color: var(--ink); background: var(--paper); border: 2.5px solid var(--wood-dark); border-radius: 50%; box-shadow: 0 3px 0 var(--wood-dark); cursor: pointer; }
+.mimi-talk-stage { display: flex; flex-direction: column; align-items: center; gap: 1rem; padding: .5rem 1rem 1rem; overflow-y: auto; }
+.mimi-talk-figure { width: clamp(170px, 30vh, 300px); margin-top: auto; }
+/* Once she has answered, a smaller Mimi leaves room for the reply and its products. */
+.mimi-talk.has-answer .mimi-talk-figure { width: clamp(110px, 18vh, 170px); margin-top: 0; }
+.mimi-talk-lines { display: grid; gap: .6rem; justify-items: center; width: min(640px, 100%); margin-bottom: auto; text-align: center; }
+.mimi-talk-says { position: relative; margin: 0; padding: .9rem 1.2rem; font-size: clamp(1.05rem, 2.4vw, 1.25rem); line-height: 1.55; white-space: pre-line; background: #fff; border: 2.5px solid var(--wood-dark); border-radius: 20px; box-shadow: 0 4px 0 var(--wood-dark); }
+.mimi-talk-says::before { content: ""; position: absolute; left: 50%; top: -11px; width: 18px; height: 18px; background: #fff; border-left: 2.5px solid var(--wood-dark); border-top: 2.5px solid var(--wood-dark); transform: translateX(-50%) rotate(45deg); }
+.mimi-talk-says.is-notice { color: var(--out); background: #fdecea; }
+.mimi-talk-says.is-notice::before { background: #fdecea; }
+.mimi-talk-says.is-typing { display: inline-flex; gap: .35rem; }
+.mimi-talk-says.is-typing span { width: 9px; height: 9px; border-radius: 50%; background: var(--wood); animation: chat-dot 1s ease-in-out infinite; }
+.mimi-talk-says.is-typing span:nth-child(2) { animation-delay: .15s; }
+.mimi-talk-says.is-typing span:nth-child(3) { animation-delay: .3s; }
+.mimi-talk-heard { margin: 0; max-width: 100%; padding: .45rem 1rem; color: #fff; background: var(--door); border-radius: 16px; }
+.mimi-talk-heard span { font-weight: 600; opacity: .8; }
+.mimi-talk-products { width: min(640px, 100%); }
+.mimi-talk-controls { display: grid; justify-items: center; gap: .65rem; padding: .75rem 1rem 1rem; background: rgba(255, 249, 239, .85); border-top: 2px dashed var(--wood-light); }
+.mimi-talk-status { margin: 0; font-size: .95rem; color: var(--ink-soft); text-align: center; }
+.mimi-talk-problem { margin: 0; padding: .4rem .9rem; font-size: .88rem; color: var(--out); background: #fdecea; border-radius: 12px; text-align: center; }
+.mimi-talk-mic { display: inline-flex; align-items: center; gap: .55rem; min-height: 56px; padding: .4rem 1.4rem .4rem .5rem; font-family: var(--font-sign); font-weight: 800; font-size: 1.1rem; color: #fff; background: var(--door); border: 2.5px solid var(--wood-dark); border-radius: 999px; box-shadow: var(--lift); cursor: pointer; }
+.mimi-talk-mic svg { width: 42px; height: 42px; padding: 8px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; background: rgba(255, 255, 255, .18); border-radius: 50%; }
+.mimi-talk-mic.is-on { background: var(--roof); animation: mic-pulse 1.4s ease-in-out infinite; }
+.mimi-talk-mic:disabled { opacity: .55; cursor: default; }
+.mimi-talk-start { min-height: 56px; font-size: 1.15rem; }
+.mimi-talk-type { display: flex; gap: .5rem; width: min(520px, 100%); }
+.mimi-talk-type input { flex: 1; min-width: 0; min-height: 46px; padding: .5rem .9rem; font: inherit; color: var(--ink); background: #fff; border: 2px solid var(--wood-light); border-radius: 999px; }
+.mimi-talk-type input:focus-visible { outline: 3px solid var(--glow); outline-offset: 1px; border-color: var(--wood-dark); }
+@media (max-height: 560px) {
+  .mimi-talk-figure { width: 120px; }
+  .mimi-talk-controls { gap: .45rem; padding: .5rem 1rem .6rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mimi-talk-mic.is-on, .mimi-talk-says.is-typing span { animation: none; }
+}
+/* Placed by MimiReturnHint: kept on screen, with --tip moving the arrow over the middle of the button it points at. */
+.mimi-return-hint {
+  position: fixed; z-index: 46;
+  padding: .55rem .9rem; font-family: var(--font-sign); font-weight: 700; font-size: .98rem; line-height: 1.3; color: var(--ink);
+  background: var(--glow); border: 2.5px solid var(--wood-dark); border-radius: 16px; box-shadow: 0 4px 0 var(--wood-dark); cursor: pointer;
+  animation: hint-pop .35s ease-out;
+}
+.mimi-return-hint::after { content: ""; position: absolute; left: var(--tip, 50%); bottom: -9px; width: 14px; height: 14px; background: var(--glow); border-right: 2.5px solid var(--wood-dark); border-bottom: 2.5px solid var(--wood-dark); transform: translateX(-50%) rotate(45deg); }
+@keyframes hint-pop { from { opacity: 0; translate: 0 8px; } to { opacity: 1; translate: 0 0; } }
+@media (prefers-reduced-motion: reduce) { .mimi-return-hint { animation: none; } }
+.chat-head .chat-head-action { white-space: nowrap; }
+/* The Mimi face and the launcher already name the panel, so the title gives its room to the buttons on one line. */
+.chat-panel .chat-head-text { display: none; }
+.chat-panel .chat-head-mimi { margin-right: auto; }
+.chat-panel .chat-head { gap: .35rem; }

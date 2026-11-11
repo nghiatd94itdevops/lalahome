@@ -477,6 +477,8 @@ async function initDb() {
     await conn.query(`ALTER TABLE quote_requests ADD COLUMN IF NOT EXISTS quotation_id VARCHAR(100) DEFAULT NULL`);
     await conn.query(`ALTER TABLE quote_requests ADD COLUMN IF NOT EXISTS responded_at TIMESTAMP NULL DEFAULT NULL`);
     await conn.query(`ALTER TABLE quote_requests ADD COLUMN IF NOT EXISTS response_email VARCHAR(255) DEFAULT NULL`);
+    await conn.query(`ALTER TABLE quote_requests ADD COLUMN IF NOT EXISTS items TEXT DEFAULT NULL`);
+    await conn.query(`ALTER TABLE quote_requests ADD COLUMN IF NOT EXISTS source VARCHAR(20) NOT NULL DEFAULT 'form'`);
     await conn.query(`
       CREATE TABLE IF NOT EXISTS correction_requests (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -1992,12 +1994,42 @@ app.post('/quotations/:id/send-email', authMiddleware, requirePermission('quotat
   } catch (err) { res.status(500).json({ error: `Gửi email thất bại: ${err.message}` }); }
 });
 
+const QUOTE_SOURCES = new Set(['form', 'chat']);
+const QUOTE_MAX_ITEMS = 10;
+const QUOTE_MAX_QUANTITY = 1000000;
+
+// The product lines of a request drafted by the assistant. Names and units are read from the catalogue, so a
+// request can only name products that are on sale, whatever the browser sent.
+async function quoteItems(items) {
+  if (!Array.isArray(items) || !items.length || items.length > QUOTE_MAX_ITEMS) return { error: `Yêu cầu cần từ 1 đến ${QUOTE_MAX_ITEMS} sản phẩm` };
+  const wanted = items.map((item) => ({ productId: Number(item?.productId), quantity: Number(item?.quantity) }));
+  if (wanted.some((item) => !Number.isInteger(item.productId) || !Number.isInteger(item.quantity) || item.quantity < 1 || item.quantity > QUOTE_MAX_QUANTITY)) {
+    return { error: 'Sản phẩm hoặc số lượng yêu cầu không hợp lệ' };
+  }
+  if (new Set(wanted.map((item) => item.productId)).size !== wanted.length) return { error: 'Mỗi sản phẩm chỉ ghi một lần' };
+  const rows = await pool.query(`SELECT id,name,unit FROM products WHERE active=1 AND id IN (${wanted.map(() => '?').join(',')})`, wanted.map((item) => item.productId));
+  const byId = new Map(rows.map((row) => [Number(row.id), row]));
+  const unknown = wanted.find((item) => !byId.has(item.productId));
+  if (unknown) return { error: `Sản phẩm mã ${unknown.productId} không còn bán` };
+  return { lines: wanted.map((item) => ({ ...item, name: byId.get(item.productId).name, unit: byId.get(item.productId).unit || '' })) };
+}
+
 app.post('/quote-requests', async (req, res) => {
   try {
-    const { customerName, phone, email, companyName, productId, productName, quantity = 1, message } = req.body;
+    const { customerName, phone, email, companyName, productId, productName, quantity = 1, message, items, source = 'form' } = req.body;
     if (!customerName?.trim() || !phone?.trim()) return res.status(400).json({ error: 'Họ tên và số điện thoại là bắt buộc' });
-    if (!Number.isInteger(Number(quantity)) || Number(quantity) < 1) return res.status(400).json({ error: 'Số lượng yêu cầu không hợp lệ' });
-    const result = await pool.query('INSERT INTO quote_requests (customer_name,phone,email,company_name,product_id,product_name,quantity,message) VALUES (?,?,?,?,?,?,?,?)', [customerName.trim(), phone.trim(), email || null, companyName || null, productId || null, productName || null, Number(quantity), message || null]);
+    if (!QUOTE_SOURCES.has(source)) return res.status(400).json({ error: 'Nguồn yêu cầu không hợp lệ' });
+    let lines = null;
+    if (items !== undefined) {
+      const checked = await quoteItems(items);
+      if (checked.error) return res.status(400).json({ error: checked.error });
+      lines = checked.lines;
+    } else if (!Number.isInteger(Number(quantity)) || Number(quantity) < 1) {
+      return res.status(400).json({ error: 'Số lượng yêu cầu không hợp lệ' });
+    }
+    // The first line also fills the single-product columns, which the admin list, dashboard and exports read.
+    const first = lines ? lines[0] : { productId: productId || null, name: productName || null, quantity: Number(quantity) };
+    const result = await pool.query('INSERT INTO quote_requests (customer_name,phone,email,company_name,product_id,product_name,quantity,message,items,source) VALUES (?,?,?,?,?,?,?,?,?,?)', [customerName.trim(), phone.trim(), email || null, companyName || null, first.productId, first.name, first.quantity, message || null, lines ? JSON.stringify(lines) : null, source]);
     res.status(201).json({ id: Number(result.insertId) });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -2015,7 +2047,7 @@ app.get('/quote-requests', authMiddleware, requirePermission('quote_requests.man
         (phone && normalizePhone(customer.phone) === phone) ||
         (email && normalizeEmail(customer.email) === email)
       );
-      return { ...row, customer_matches: matches };
+      return { ...row, items: row.items ? JSON.parse(row.items) : [], customer_matches: matches };
     }));
   } catch (err) { res.status(500).json({ error: err.message }); }
 });

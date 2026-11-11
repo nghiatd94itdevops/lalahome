@@ -58,6 +58,21 @@ Kiểm tra: `http://localhost:4000/health` trả `{"ok":true}`, rồi mở `http
 
 Chuyển sang máy khác (kèm dữ liệu): xem `lalaflow/README.md` và `scripts/pack_source.py`.
 
+## Deploy bằng Docker (một VM)
+
+Chỉ cần Docker + Compose v2 trên VM. Cả 3 phần (web :8000, backend, MariaDB) chạy bằng `docker-compose.yml` ở thư mục gốc;
+image web tự build frontend và tải model giọng nói, không cần `.venv`, `models/`, `node_modules`.
+
+```bash
+cp .env.example .env      # bắt buộc: DB_ROOT_PASSWORD, DB_PASSWORD, JWT_SECRET (thiếu là compose dừng ngay)
+docker compose up -d --build --wait
+curl -s localhost:8000/health
+```
+
+Chỉ cổng `WEB_PORT` (mặc định 8000) mở ra host; backend và DB nằm trong mạng nội bộ của Docker. Dữ liệu nằm ở volume
+`lalahome_db_data`, `lalahome_backend_uploads`, `lalahome_web_logs` — `docker compose down` giữ nguyên, `down -v` **xoá**.
+`lalaflow/docker-compose.yml` cũ vẫn dùng cho cách chạy dev ở trên; không chạy cả hai cùng lúc trên một máy.
+
 ## Cấu hình
 
 **Server :8000** (biến môi trường, mặc định trong `speech-service/app/config.py`):
@@ -68,6 +83,13 @@ Chuyển sang máy khác (kèm dữ liệu): xem `lalaflow/README.md` và `scrip
 | `LALAFLOW_API_UPSTREAM` | `http://127.0.0.1:4000` | Backend mà `/api/*` chuyển tới |
 | `MAX_STREAMS` | `5` | Số luồng nói → chữ cùng lúc |
 | `ASR_MODEL_DIR`, `TTS_MODEL_DIR`, `VAD_MODEL` | thư mục `models/` | Model giọng nói |
+| `AZURE_SPEECH_KEY` | trống | Key tài nguyên Azure Speech. Có key → Mimi đọc bằng giọng Azure; lỗi/hết quota → tự đọc bằng Piper local (bỏ qua Azure 60 giây). Trống = chỉ Piper |
+| `AZURE_SPEECH_REGION` | `southeastasia` | Region của tài nguyên Speech (phải khớp với key) |
+| `AZURE_TTS_VOICE` | `vi-VN-HoaiMyNeural` | Giọng Azure; giọng nam: `vi-VN-NamMinhNeural` |
+
+Đặt key khi chạy (PowerShell): `$env:AZURE_SPEECH_KEY = "<key>"; $env:AZURE_SPEECH_REGION = "<region>"` rồi chạy lệnh uvicorn ở bước 3.
+Không ghi key vào source hay commit. Khi bật Azure, **chữ** câu trả lời của Mimi được gửi sang Microsoft để đọc; giọng khách vẫn
+nhận dạng tại server. `/health` cho biết giọng đang dùng (`tts_voice`), mỗi file âm thanh có header `X-TTS-Engine: azure|piper`.
 
 **Backend LalaFlow** (`lalaflow/.env`, mẫu ở `.env.example`): `DB_ROOT_PASSWORD`, `DB_PASSWORD`, `JWT_SECRET`, `SMTP_*`,
 `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_BASE_URL`, `CHAT_DAILY_LIMIT`, `TRUST_PROXY`.
@@ -90,6 +112,7 @@ cd speech-service\tests
 ..\..\.venv\Scripts\python.exe protocol_checks.py        # giới hạn luồng, ngắt kết nối, lỗi giao thức, TTS
 ..\..\.venv\Scripts\python.exe load_test.py --streams 5  # độ trễ khi 5 luồng cùng nói
 ..\..\.venv\Scripts\python.exe feedback_report.py        # độ chính xác từ đánh giá Đúng/Sai (logs/feedback.jsonl)
+..\..\.venv\Scripts\python.exe azure_tts_checks.py       # client giọng Azure với endpoint giả (không cần key, không cần server)
 ```
 
 Server cần đang chạy ở `http://127.0.0.1:8000` (đổi bằng `--base`).

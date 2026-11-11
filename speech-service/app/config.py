@@ -2,6 +2,8 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
+from .azure_tts import endpoint_for
+
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 MODELS_DIR = PROJECT_ROOT / "models"
 
@@ -45,6 +47,9 @@ class Settings:
     feedback_log: Path
     lalaflow_api_upstream: str
     public_site_url: str
+    azure_speech_key: str
+    azure_tts_endpoint: str
+    azure_tts_voice: str
 
 
 def load_settings() -> Settings:
@@ -70,4 +75,8 @@ def load_settings() -> Settings:
         lalaflow_api_upstream=_env_str("LALAFLOW_API_UPSTREAM", "http://127.0.0.1:4000"),
         # Origin for canonical URLs and the sitemap; empty means "the host the request came in on" (e.g. ngrok).
         public_site_url=_env_str("PUBLIC_SITE_URL", ""),
+        # Empty key: every answer is read by the local Piper voice, as before.
+        azure_speech_key=_env_str("AZURE_SPEECH_KEY", ""),
+        azure_tts_endpoint=_env_str("AZURE_TTS_ENDPOINT", endpoint_for(_env_str("AZURE_SPEECH_REGION", "southeastasia"))),
+        azure_tts_voice=_env_str("AZURE_TTS_VOICE", "vi-VN-HoaiMyNeural"),
     )

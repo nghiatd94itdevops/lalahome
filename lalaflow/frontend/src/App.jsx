@@ -13,6 +13,7 @@ import AdminApp from "./admin/AdminApp.jsx";
 import ErrorBoundary from "./components/ErrorBoundary.jsx";
 import ChatAssistant from "./components/ChatAssistant.jsx";
 import { useAssistantChat } from "./components/useAssistantChat.js";
+import MimiConversation, { MIMI_GREETING, MIMI_WELCOME_BACK, MimiReturnHint } from "./components/MimiConversation.jsx";
 import InstallBanner from "./components/InstallBanner.jsx";
 import "./admin/admin.css";
 
@@ -26,11 +27,17 @@ function ScrollToTop() {
 }
 
 const ASSISTANT_PATH = "/tro-ly";
+const PRODUCTS_PATH = "/san-pham";
+// The cover's Welcome door links to /lalaflow/?mimi=1: the site opens with Mimi greeting the visitor face to face.
+const MIMI_PARAM = "mimi";
 
 function Site() {
-  const { pathname } = useLocation();
+  const { pathname, search } = useLocation();
   const navigate = useNavigate();
   const onAssistantPage = pathname === ASSISTANT_PATH;
+  const [conversing, setConversing] = useState(() => new URLSearchParams(search).has(MIMI_PARAM));
+  const [mimiGreeting, setMimiGreeting] = useState(MIMI_GREETING);
+  const [returnHint, setReturnHint] = useState(false);
   const [content, setContent] = useState(fallbackContent);
   const [products, setProducts] = useState([]);
   const [activities, setActivities] = useState([]);
@@ -38,7 +45,7 @@ function Site() {
   const [alert, setAlert] = useState(null);
   const [chatOpen, setChatOpen] = useState(false);
   const [contactOpen, setContactOpen] = useState(false);
-  const assistant = useAssistantChat({ active: chatOpen || onAssistantPage });
+  const assistant = useAssistantChat({ active: chatOpen || onAssistantPage || conversing, conversing });
 
   useEffect(() => {
     setContactOpen(false);
@@ -74,6 +81,21 @@ function Site() {
     setChatOpen(false);
     navigate(ASSISTANT_PATH);
   };
+  // Dropping ?mimi=1 keeps a reload or a shared link from greeting again; a product link clicked on the screen
+  // navigates right after this.
+  const closeConversation = useCallback(() => {
+    setConversing(false);
+    setReturnHint(true);
+    if (new URLSearchParams(window.location.search).has(MIMI_PARAM)) navigate(pathname, { replace: true });
+  }, [navigate, pathname]);
+  const openConversation = () => {
+    setChatOpen(false);
+    setContactOpen(false);
+    setReturnHint(false);
+    setMimiGreeting(MIMI_WELCOME_BACK);
+    setConversing(true);
+  };
+  const hideReturnHint = useCallback(() => setReturnHint(false), []);
   const shared = { content, products, activities, dataState, notify, openAssistant: () => changeChat(true), openAssistantPage };
   const changeContact = (open) => {
     setContactOpen(open);
@@ -102,8 +124,18 @@ function Site() {
       </main>
       {!onAssistantPage && <Footer company={content.company} />}
       <ContactChannels company={content.company} open={contactOpen} onOpenChange={changeContact} />
-      {!onAssistantPage && <ChatAssistant open={chatOpen} onOpenChange={changeChat} onExpand={openAssistantPage} assistant={assistant} />}
+      {!onAssistantPage && <ChatAssistant open={chatOpen} onOpenChange={changeChat} onExpand={openAssistantPage} onTalk={openConversation} assistant={assistant} />}
       <TabBar company={content.company} chatOpen={chatOpen || onAssistantPage} onChat={onAssistantPage ? undefined : () => changeChat(!chatOpen)} contactOpen={contactOpen} onContact={() => changeContact(!contactOpen)} />
+      {conversing && (
+        <MimiConversation
+          assistant={assistant}
+          greetingText={mimiGreeting}
+          onClose={closeConversation}
+          onBrowse={() => { closeConversation(); navigate(PRODUCTS_PATH); }}
+          onOpenChat={() => { closeConversation(); navigate(ASSISTANT_PATH); }}
+        />
+      )}
+      {returnHint && !conversing && !chatOpen && <MimiReturnHint onOpen={openConversation} onDone={hideReturnHint} />}
       <AlertPopup alert={alert} onClose={closeAlert} />
     </div>
   );

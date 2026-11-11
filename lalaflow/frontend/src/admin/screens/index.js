@@ -1,6 +1,7 @@
 import { createElement } from "react";
 import Home from "./Home.jsx";
 import Content from "./Content.jsx";
+import SpokenWords from "./SpokenWords.jsx";
 import { ActivitiesCreate, ActivitiesList } from "./Activities.jsx";
 import { CategoriesCreate, CategoriesList } from "./Categories.jsx";
 import { ProductsCreate, ProductsList } from "./Products.jsx";
@@ -17,6 +18,7 @@ export const SCREENS = {
   content: Content,
   activities_create: ActivitiesCreate,
   activities_list: ActivitiesList,
+  spoken_words: SpokenWords,
   categories_create: CategoriesCreate,
   categories_list: CategoriesList,
   products_create: ProductsCreate,

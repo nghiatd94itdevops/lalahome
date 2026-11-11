@@ -1,0 +1,16 @@
+.git
+.venv
+.env
+**/.env
+**/node_modules
+**/__pycache__
+models
+logs
+_archive
+docs
+lalaflow/backups
+lalaflow/backend
+lalaflow/database
+web/lalaflow
+*.zip
+*.bak

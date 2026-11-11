@@ -1,8 +1,9 @@
-// Voice for the assistant, using the local speech service on :8000 (same protocol as web/app.js).
+// Voice for the assistant, using the local speech service on :8000.
 // The speech-to-text model is licensed CC-BY-NC-ND-4.0 (non-commercial): fine for internal trials, it has to be
 // replaced before the shop's public site relies on it. The text-to-speech voice is CC-BY-4.0.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { SPEECH_ORIGIN } from "../api.js";
+import { useSpokenWords } from "./spokenWords.js";
 
 const SAMPLE_RATE = 16000;
 // After a finished sentence, wait this long for more speech before treating the question as complete.
@@ -171,13 +172,29 @@ export function useVoiceInput(onQuestion) {
   return { state, heard, error, start, stop, cancel };
 }
 
-// Prices read better as words: "180.000đ/cuộn" → "180000 đồng một cuộn".
-export function speakable(text) {
-  const spoken = text
+// The model writes answers with markdown (**đậm**, "- " lists, # headings); the voice would read the symbols out.
+// Each line becomes its own sentence so list items get a pause instead of running together.
+function withoutMarkdown(text) {
+  return text
+    .replace(/[*_`#~]+/g, "")
+    .replace(/^\s*(?:[-•+>]|\d+[.)])\s+/gm, "")
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => (/[.!?…:;,]$/.test(line) ? line : `${line}.`))
+    .join(" ");
+}
+
+// Prices read better as words: "180.000đ/cuộn" → "180000 đồng một cuộn". Every other word or symbol the voice gets
+// wrong is in the pronunciation table (`readWords`, see spokenWords.js), which runs after the price rules.
+export function speakable(text, readWords = (spoken) => spoken) {
+  const prices = withoutMarkdown(text)
     .replace(/(\d{1,3}(?:\.\d{3})+)\s*đ/g, (_, n) => `${n.replace(/\./g, "")} đồng`)
     .replace(/(\d+)\s*đ\b/g, "$1 đồng")
-    .replace(/\s*\/\s*/g, " một ")
+    .replace(/đồng\s*\/\s*/g, "đồng một ");
+  const spoken = readWords(prices)
     .replace(/\s+/g, " ")
+    .replace(/\s+([.,!?;:…])/g, "$1")
     .trim();
   if (spoken.length <= MAX_SPOKEN_CHARS) return spoken;
   const cut = spoken.slice(0, MAX_SPOKEN_CHARS);
@@ -185,39 +202,102 @@ export function speakable(text) {
   return end > 0 ? cut.slice(0, end + 1) : cut;
 }
 
+export async function fetchSpeech(input) {
+  const response = await fetch(`${SPEECH_ORIGIN}/v1/audio/speech`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ input }) });
+  if (!response.ok) throw new Error(`speech service answered ${response.status} for ${input.length} characters`);
+  return response.blob();
+}
+
+// say() resolves with how the speech finished: "ended" (heard to the end), "stopped" (silenced or replaced),
+// "blocked" (the browser refused to play without a tap) or "failed" (no audio from the speech service).
 export function useSpeaker() {
   const audio = useRef(null);
+  const finish = useRef(null);
+  // Bumped by silence(): a say() still waiting for its audio sees the change and does not start playing.
+  const turn = useRef(0);
+  // Audio fetched ahead by preload(), so a tap can start it without waiting on the network: iPhone browsers only
+  // allow sound that starts within the tap itself.
+  const preloaded = useRef(new Map());
+  // A ref so preload() and say() keep their identity when the saved table arrives after the first render.
+  const readWords = useRef(null);
+  readWords.current = useSpokenWords();
   const [problem, setProblem] = useState("");
+  const [speaking, setSpeaking] = useState(false);
+  // Between say() and the first sound, while the speech service renders the audio (a few seconds for an answer).
+  const [preparing, setPreparing] = useState(false);
+
+  const release = useCallback((outcome) => {
+    const player = audio.current;
+    const done = finish.current;
+    audio.current = null;
+    finish.current = null;
+    setSpeaking(false);
+    setPreparing(false);
+    if (player) {
+      player.pause();
+      URL.revokeObjectURL(player.src);
+    }
+    done?.(outcome);
+  }, []);
 
   const silence = useCallback(() => {
-    if (!audio.current) return;
-    audio.current.pause();
-    URL.revokeObjectURL(audio.current.src);
-    audio.current = null;
+    turn.current += 1;
+    release("stopped");
+  }, [release]);
+
+  const preload = useCallback(async (text) => {
+    const input = speakable(text, readWords.current);
+    if (!input || preloaded.current.has(input)) return;
+    try {
+      preloaded.current.set(input, await fetchSpeech(input));
+    } catch (err) {
+      // say() fetches again and reports the problem if the service is really down.
+      console.warn(`Could not prepare speech ahead: ${err.message}`);
+    }
   }, []);
 
   const say = useCallback(async (text) => {
     silence();
+    const thisTurn = turn.current;
     setProblem("");
-    const input = speakable(text);
-    if (!input) return;
+    const input = speakable(text, readWords.current);
+    if (!input) return "ended";
+    let player;
+    setPreparing(true);
     try {
-      const response = await fetch(`${SPEECH_ORIGIN}/v1/audio/speech`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ input }) });
-      if (!response.ok) throw new Error(`speech ${response.status}`);
-      const player = new Audio(URL.createObjectURL(await response.blob()));
-      audio.current = player;
-      player.addEventListener("ended", silence, { once: true });
-      await player.play();
+      // No await when the audio is preloaded, so play() below still runs inside the visitor's tap.
+      const blob = preloaded.current.get(input) || await fetchSpeech(input);
+      if (thisTurn !== turn.current) return "stopped";
+      player = new Audio(URL.createObjectURL(blob));
     } catch (err) {
       // The written answer is already on screen, so this only explains why there is no sound.
       console.warn(`Assistant could not read the answer aloud: ${err.message}`);
-      setProblem(err.name === "NotAllowedError"
+      setProblem("Chưa đọc được câu trả lời (dịch vụ giọng nói không phản hồi).");
+      if (thisTurn === turn.current) setPreparing(false);
+      return "failed";
+    }
+    audio.current = player;
+    const outcome = new Promise((resolve) => { finish.current = resolve; });
+    player.addEventListener("ended", () => {
+      if (audio.current === player) release("ended");
+    }, { once: true });
+    try {
+      await player.play();
+      if (audio.current === player) {
+        setSpeaking(true);
+        setPreparing(false);
+      }
+    } catch (err) {
+      const blocked = err.name === "NotAllowedError";
+      console.warn(`Assistant could not play speech: ${err.message}`);
+      setProblem(blocked
         ? "Trình duyệt đang chặn tự phát âm thanh. Bấm vào trang một lần hoặc cho phép âm thanh ở thanh địa chỉ."
         : "Chưa đọc được câu trả lời (dịch vụ giọng nói không phản hồi).");
-      silence();
+      if (audio.current === player) release(blocked ? "blocked" : "failed");
     }
-  }, [silence]);
+    return outcome;
+  }, [silence, release]);
 
   useEffect(() => silence, [silence]);
-  return { say, silence, problem };
+  return { say, silence, preload, problem, speaking, preparing };
 }
