@@ -1,0 +1,42 @@
+# Words the speech recogniser should prefer when it is unsure: the shop's products, materials and the way customers
+# ask about them. One phrase per line, written as people say it (numbers in words). Restart the :8000 server after
+# editing. Keep it to words the shop really uses: every phrase here nudges the recogniser towards it everywhere.
+
+# Product kinds
+giấy dán tường
+vải dán tường
+xốp dán tường
+giấy in
+giấy bìa
+bao bì
+giấy kraft
+giấy couche
+giả gạch
+đáy chữ thập
+vinyl
+pvc
+
+# Brands and ranges in the catalogue
+hàn quốc
+soho
+living
+hera
+bos
+darae
+eroom
+sketch
+mida
+
+# What customers ask about
+chống ẩm
+chống nước
+chống cháy
+chống thấm
+định lượng
+mét vuông
+cuộn
+giá rẻ
+báo giá
+còn hàng
+nghìn
+trăm nghìn

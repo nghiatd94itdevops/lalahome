@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { HOME_ART, phoneHref, splitList } from "../api.js";
 import { ActivityCard, ProductCard } from "../components/Cards.jsx";
-import { Mimi, MimiNote, useMimiNow } from "../components/Mimi.jsx";
+import { MimiNote, PokableMimi, useMimiNow } from "../components/Mimi.jsx";
 import { PaintedPanel, SectionHead } from "../components/Scenery.jsx";
 import { useSeo } from "../seo.js";
 
@@ -21,7 +21,7 @@ function MimiNow({ onAsk }) {
   return (
     <section className="wrap section" aria-label="Mimi lúc này">
       <div className="mimi-now">
-        <Mimi state={now.state} season={now.season} festival={now.festival} className="mimi-now-figure" />
+        <PokableMimi state={now.state} season={now.season} festival={now.festival} className="mimi-now-figure" />
         <div className="mimi-now-copy">
           <p className="eyebrow">Mimi lúc này · {now.time}</p>
           <h2>{now.line}</h2>

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { Mimi } from "./Mimi.jsx";
-import { ChatProducts, MessageQuote } from "./ChatAssistant.jsx";
+import { PokableMimi } from "./Mimi.jsx";
+import { BlockedSpeechPrompt, ChatProducts, MessageQuote, spokenSoFar } from "./ChatAssistant.jsx";
 
 export const MIMI_GREETING = "Chào bạn, mình là Mimi, trợ lý AI của LaLa Home. Mình có thể giúp gì cho bạn?";
 // When the visitor comes back to the screen in the same visit she carries on instead of introducing herself again.
@@ -120,6 +120,11 @@ export default function MimiConversation({ assistant, onClose, onBrowse, onOpenC
   const answered = assistant.messages.length > earlier;
   const waitingForTap = greeting === GREETING_STATES.needsTap;
   const problem = voice.error || (waitingForTap ? "" : speaker.problem);
+  // Her words appear as she says them; until the greeting's sound is ready she shows the typing dots.
+  const greetingOnItsWay = greeting === GREETING_STATES.preparing && !answered && !speaker.reading;
+  const said = greetingOnItsWay ? "" : spokenSoFar(assistant, reply.content);
+  const typing = assistant.busy || !said;
+  const finished = !typing && said.length === reply.content.length;
 
   return (
     <div className={`mimi-talk ${answered ? "has-answer" : ""}`} role="dialog" aria-modal="true" aria-label="Trò chuyện với Mimi, trợ lý AI">
@@ -129,17 +134,17 @@ export default function MimiConversation({ assistant, onClose, onBrowse, onOpenC
       </header>
 
       <div className="mimi-talk-stage">
-        <Mimi state={assistant.mimiState} className="mimi-talk-figure" />
+        <PokableMimi state={assistant.mimiState} onPoke={assistant.pokeMimi} className="mimi-talk-figure" />
         <div className="mimi-talk-lines" aria-live="polite">
-          {assistant.busy
+          {typing
             ? <p className="mimi-talk-says is-typing" aria-label="Mimi đang trả lời"><span /><span /><span /></p>
-            : <p className={`mimi-talk-says ${reply.role === "notice" ? "is-notice" : ""}`}>{reply.content}</p>}
+            : <p className={`mimi-talk-says ${reply.role === "notice" ? "is-notice" : ""}`}>{said}</p>}
           {heard && <p className="mimi-talk-heard"><span>Bạn:</span> {heard}</p>}
         </div>
-        {!assistant.busy && reply.products?.length > 0 && (
+        {finished && reply.products?.length > 0 && (
           <div className="mimi-talk-products"><ChatProducts message={reply} onPick={onClose} /></div>
         )}
-        {!assistant.busy && reply.quoteDraft && (
+        {finished && reply.quoteDraft && (
           <div className="mimi-talk-quote"><MessageQuote assistant={assistant} index={assistant.messages.indexOf(reply)} /></div>
         )}
       </div>
@@ -147,6 +152,7 @@ export default function MimiConversation({ assistant, onClose, onBrowse, onOpenC
       <footer className="mimi-talk-controls">
         <p className="mimi-talk-status">{statusLine({ assistant, greeting })}</p>
         {problem && <p className="mimi-talk-problem" role="alert">{problem}</p>}
+        {!waitingForTap && <BlockedSpeechPrompt assistant={assistant} />}
         {waitingForTap
           ? <button type="button" className="btn btn-door mimi-talk-start" onClick={() => { setGreeting(GREETING_STATES.preparing); greet(); }}>🎤 Nói chuyện với Mimi</button>
           : assistant.micAvailable && <MicButton assistant={assistant} />}

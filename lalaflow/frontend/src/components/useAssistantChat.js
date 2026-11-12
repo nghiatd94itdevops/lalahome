@@ -172,6 +172,11 @@ export function useAssistantChat({ active, conversing = false }) {
     return outcome;
   }
 
+  // Called from the visitor's tap on "Cho phép & nghe": the blocked answer's audio is kept, so it starts inside the tap.
+  function playBlocked() {
+    return speakThenListen(speaker.blockedText);
+  }
+
   function pause() {
     setPaused(true);
     voice.cancel();
@@ -229,7 +234,9 @@ export function useAssistantChat({ active, conversing = false }) {
 
   return {
     messages: chat.messages, draft, setDraft, busy, send, restart, readAloud, toggleReadAloud, submitQuote,
-    voice, voiceActive, micAvailable: canListen(), toggleMic, speaker, mimiState: mood.state,
+    voice, voiceActive, micAvailable: canListen(), toggleMic, speaker, playBlocked, mimiState: mood.state,
+    // A poke shows her reaction and counts as activity, so a dozing Mimi wakes up and her doze timer starts over.
+    pokeMimi: mood.flash,
     conversation: { paused, pause, resume, speakThenListen },
   };
 }

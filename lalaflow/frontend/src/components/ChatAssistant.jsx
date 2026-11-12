@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { money } from "../api.js";
 import { PRODUCT_STATUS_TONE } from "../content.js";
-import { Mimi, MimiFace } from "./Mimi.jsx";
+import { Mimi, MimiFace, PokableMimi } from "./Mimi.jsx";
 import { ProductImage } from "./Cards.jsx";
 import QuoteDraftCard from "./QuoteDraftCard.jsx";
 import { PHONE_QUERY } from "./Shell.jsx";
@@ -64,9 +64,17 @@ export function MessageQuote({ assistant, index }) {
   );
 }
 
+// While Mimi reads `text` aloud, only the part she has said so far ("" until the sound starts), so the words appear
+// as she speaks them. When nothing is being read — reading off, speech failed or blocked, paused — the whole text.
+export function spokenSoFar(assistant, text) {
+  const { reading } = assistant.speaker;
+  return reading?.text === text ? text.slice(0, reading.chars) : text;
+}
+
 // The greeting, first-question suggestions and the conversation. `renderProducts(message, index)` draws what goes
 // under an answer that found products.
 export function ChatThread({ assistant, listRef, renderProducts }) {
+  const latest = assistant.messages.length - 1;
   return (
     <div className="chat-messages" ref={listRef} aria-live="polite">
       <AssistantSays>{GREETING}</AssistantSays>
@@ -75,13 +83,18 @@ export function ChatThread({ assistant, listRef, renderProducts }) {
           {SUGGESTIONS.map((s) => <button type="button" key={s} onClick={() => assistant.send(s)}>{s}</button>)}
         </div>
       )}
-      {assistant.messages.map((m, i) => (
-        <div key={i} className={`chat-turn is-${m.role}`}>
-          {m.role === "assistant" ? <AssistantSays>{m.content}</AssistantSays> : <p className={`chat-bubble is-${m.role}`}>{m.content}</p>}
-          {m.products?.length > 0 && renderProducts(m, i)}
-          {m.quoteDraft && <MessageQuote assistant={assistant} index={i} />}
-        </div>
-      ))}
+      {assistant.messages.map((m, i) => {
+        const shown = i === latest ? spokenSoFar(assistant, m.content) : m.content;
+        // Products and the quote draft follow once she has finished saying the answer.
+        const finished = shown.length === m.content.length;
+        return (
+          <div key={i} className={`chat-turn is-${m.role}`}>
+            {m.role === "assistant" ? <AssistantSays typing={!shown}>{shown}</AssistantSays> : <p className={`chat-bubble is-${m.role}`}>{m.content}</p>}
+            {finished && m.products?.length > 0 && renderProducts(m, i)}
+            {finished && m.quoteDraft && <MessageQuote assistant={assistant} index={i} />}
+          </div>
+        );
+      })}
       {assistant.busy && <AssistantSays typing />}
     </div>
   );
@@ -93,7 +106,7 @@ export function useFollowLatest(listRef, assistant, shown) {
     if (!shown) return;
     const list = listRef.current;
     if (list) list.scrollTop = list.scrollHeight;
-  }, [listRef, shown, assistant.messages.length, assistant.busy]);
+  }, [listRef, shown, assistant.messages.length, assistant.busy, assistant.speaker.reading?.chars]);
 }
 
 export function ReadAloudButton({ assistant }) {
@@ -105,12 +118,24 @@ export function ReadAloudButton({ assistant }) {
   );
 }
 
+// Browsers have no permission prompt for sound: the visitor's tap on this button is what lets the answer play.
+export function BlockedSpeechPrompt({ assistant }) {
+  if (!assistant.speaker.blockedText) return null;
+  return (
+    <div className="speech-blocked" role="alert">
+      <p>Trình duyệt cần bạn cho phép một lần để Mimi đọc câu trả lời.</p>
+      <button type="button" className="btn btn-door" onClick={assistant.playBlocked}>🔊 Cho phép &amp; nghe Mimi</button>
+    </div>
+  );
+}
+
 // Voice errors, the question box with the mic and send buttons, and the fine print.
 export function ChatComposer({ assistant, inputRef }) {
   const { voice, voiceActive, speaker, busy, draft, send } = assistant;
   return (
     <>
       {(voice.error || speaker.problem) && <p className="chat-voice-error" role="alert">{voice.error || speaker.problem}</p>}
+      <BlockedSpeechPrompt assistant={assistant} />
       <form className="chat-input" onSubmit={(event) => { event.preventDefault(); send(draft); }}>
         <label htmlFor="chat-question" className="visually-hidden">Câu hỏi cho trợ lý</label>
         <textarea
@@ -174,7 +199,7 @@ export default function ChatAssistant({ open, onOpenChange, onExpand, onTalk, as
       </button>
 
       {/* Desktop only (hidden on phones by CSS): Mimi stands beside the panel and acts out the conversation. */}
-      {open && <Mimi state={assistant.mimiState} className="chat-mimi-stand" />}
+      {open && <PokableMimi state={assistant.mimiState} onPoke={assistant.pokeMimi} className="chat-mimi-stand" />}
 
       {open && (
         <section className="chat-panel" id="chat-panel" role="dialog" aria-label="Trợ lý AI">

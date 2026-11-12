@@ -1,5 +1,5 @@
 import { phoneHref, splitList } from "../api.js";
-import { Mimi } from "../components/Mimi.jsx";
+import { PokableMimi } from "../components/Mimi.jsx";
 import { SectionHead } from "../components/Scenery.jsx";
 import { PageHero } from "../components/Shell.jsx";
 import { useSeo } from "../seo.js";
@@ -23,7 +23,7 @@ function MeetMimi({ onAsk }) {
       <div className="meet-mimi-grid">
         {MIMI_POSES.map((pose) => (
           <article className="meet-mimi-card" key={pose.state}>
-            <Mimi state={pose.state} className="meet-mimi-figure" />
+            <PokableMimi state={pose.state} className="meet-mimi-figure" />
             <h3>{pose.title}</h3>
             <p>{pose.text}</p>
           </article>

@@ -4,10 +4,22 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { SPEECH_ORIGIN } from "../api.js";
 import { useSpokenWords } from "./spokenWords.js";
+import { revealSchedule } from "./speechReveal.js";
 
 const SAMPLE_RATE = 16000;
 // After a finished sentence, wait this long for more speech before treating the question as complete.
 const END_OF_QUESTION_MS = 1500;
+// Longer when what was said so far cannot end a question ("tôi cần giấy… khoảng", "ờ…") or is only a word or two:
+// the visitor is still thinking, and sending now would cut the question in half.
+const MID_THOUGHT_MS = 3500;
+const SHORTEST_QUESTION_WORDS = 3;
+const UNFINISHED_ENDING = /(?:^|\s)(?:và|với|hoặc|hay|là|của|cho|để|mà|thì|nhưng|vì|nếu|khoảng|tầm|cỡ|dưới|trên|từ|đến|tới|loại|kiểu|như|màu|cái|những|các|mấy|một|hai|ba|bốn|năm|sáu|bảy|tám|chín|mười|ờ|ừ|ừm|à|ơ|ừa)$/u;
+
+function waitAfter(text) {
+  const words = text.toLocaleLowerCase("vi-VN").trim().split(/\s+/);
+  const unfinished = words.length < SHORTEST_QUESTION_WORDS || UNFINISHED_ENDING.test(words.join(" "));
+  return unfinished ? MID_THOUGHT_MS : END_OF_QUESTION_MS;
+}
 const MAX_SPOKEN_CHARS = 500;
 const socketUrl = `${SPEECH_ORIGIN.replace(/^http/, "ws")}/v1/stt/stream`;
 
@@ -153,7 +165,7 @@ export function useVoiceInput(onQuestion) {
         current.partial = "";
         show();
         clearTimeout(current.endTimer);
-        current.endTimer = setTimeout(stop, END_OF_QUESTION_MS);
+        current.endTimer = setTimeout(stop, waitAfter(current.finals.join(" ")));
       }
       if (message.type === "error" && message.code !== "idle_timeout") setError(`Dịch vụ giọng nói báo lỗi: ${message.message}`);
     });
@@ -208,9 +220,32 @@ export async function fetchSpeech(input) {
   return response.blob();
 }
 
+const SILENT_SAMPLES = 80;
+
+// 10 ms of silence: what the player plays inside the visitor's first tap to unlock itself.
+function silentWavUrl() {
+  const sampleRate = 8000;
+  const dataBytes = SILENT_SAMPLES * 2;
+  const view = new DataView(new ArrayBuffer(44 + dataBytes));
+  const ascii = (offset, text) => [...text].forEach((char, i) => view.setUint8(offset + i, char.charCodeAt(0)));
+  ascii(0, "RIFF"); view.setUint32(4, 36 + dataBytes, true); ascii(8, "WAVE");
+  ascii(12, "fmt "); view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, 1, true);
+  view.setUint32(24, sampleRate, true); view.setUint32(28, sampleRate * 2, true); view.setUint16(32, 2, true); view.setUint16(34, 16, true);
+  ascii(36, "data"); view.setUint32(40, dataBytes, true);
+  return URL.createObjectURL(new Blob([view], { type: "audio/wav" }));
+}
+
+const GESTURE_EVENTS = ["touchend", "click", "keydown"];
+
 // say() resolves with how the speech finished: "ended" (heard to the end), "stopped" (silenced or replaced),
 // "blocked" (the browser refused to play without a tap) or "failed" (no audio from the speech service).
+// An answer arrives seconds after the visitor's tap, and iPhone browsers only let an audio element play on its own
+// once it has played inside a tap. So one element is kept for every answer and unlocked on the first tap anywhere.
+// If sound is still blocked, `blockedText` holds the answer (its audio already fetched) until a tap replays it.
 export function useSpeaker() {
+  const element = useRef(null);
+  const unlocked = useRef(false);
+  // The clip now loaded in the element; null when nothing is playing.
   const audio = useRef(null);
   const finish = useRef(null);
   // Bumped by silence(): a say() still waiting for its audio sees the change and does not start playing.
@@ -222,22 +257,70 @@ export function useSpeaker() {
   const readWords = useRef(null);
   readWords.current = useSpokenWords();
   const [problem, setProblem] = useState("");
+  const [blockedText, setBlockedText] = useState("");
   const [speaking, setSpeaking] = useState(false);
   // Between say() and the first sound, while the speech service renders the audio (a few seconds for an answer).
   const [preparing, setPreparing] = useState(false);
+  // The text being read and how many of its characters have been said so far (0 until the sound starts), so the
+  // screen can write it out in step with the voice. Null when nothing is being read: the text is shown whole.
+  const [reading, setReading] = useState(null);
+  const frame = useRef(0);
+
+  const player = useCallback(() => {
+    element.current ??= new Audio();
+    return element.current;
+  }, []);
+
+  useEffect(() => {
+    let silence = null;
+    const unlock = () => {
+      if (unlocked.current || audio.current) return;
+      silence ??= silentWavUrl();
+      const target = player();
+      target.src = silence;
+      target.play()
+        .then(() => {
+          unlocked.current = true;
+          // An answer may have taken the element over while the silence started; leave it playing.
+          if (!audio.current) target.pause();
+          GESTURE_EVENTS.forEach((name) => document.removeEventListener(name, unlock, true));
+        })
+        .catch((err) => console.warn(`Could not unlock speech playback on this tap: ${err.message}`));
+    };
+    GESTURE_EVENTS.forEach((name) => document.addEventListener(name, unlock, true));
+    return () => {
+      GESTURE_EVENTS.forEach((name) => document.removeEventListener(name, unlock, true));
+      if (silence) URL.revokeObjectURL(silence);
+    };
+  }, [player]);
 
   const release = useCallback((outcome) => {
-    const player = audio.current;
+    const clip = audio.current;
     const done = finish.current;
     audio.current = null;
     finish.current = null;
+    cancelAnimationFrame(frame.current);
     setSpeaking(false);
     setPreparing(false);
-    if (player) {
-      player.pause();
-      URL.revokeObjectURL(player.src);
+    setReading(null);
+    if (clip) {
+      element.current.pause();
+      URL.revokeObjectURL(clip.url);
     }
     done?.(outcome);
+  }, []);
+
+  // Moves `reading` along with the audio once per frame, until the clip is released.
+  const followAloud = useCallback((clip, target, text) => {
+    const charsAt = revealSchedule(text);
+    const tick = () => {
+      if (audio.current !== clip) return;
+      const known = Number.isFinite(target.duration) && target.duration > 0;
+      const chars = known ? charsAt(target.currentTime / target.duration) : text.length;
+      setReading((current) => (current?.text === text && current.chars === chars ? current : { text, chars }));
+      frame.current = requestAnimationFrame(tick);
+    };
+    tick();
   }, []);
 
   const silence = useCallback(() => {
@@ -260,44 +343,57 @@ export function useSpeaker() {
     silence();
     const thisTurn = turn.current;
     setProblem("");
+    setBlockedText("");
     const input = speakable(text, readWords.current);
     if (!input) return "ended";
-    let player;
+    let blob;
     setPreparing(true);
+    setReading({ text, chars: 0 });
     try {
       // No await when the audio is preloaded, so play() below still runs inside the visitor's tap.
-      const blob = preloaded.current.get(input) || await fetchSpeech(input);
+      blob = preloaded.current.get(input) || await fetchSpeech(input);
       if (thisTurn !== turn.current) return "stopped";
-      player = new Audio(URL.createObjectURL(blob));
     } catch (err) {
-      // The written answer is already on screen, so this only explains why there is no sound.
+      // Without sound the answer is shown whole at once.
       console.warn(`Assistant could not read the answer aloud: ${err.message}`);
       setProblem("Chưa đọc được câu trả lời (dịch vụ giọng nói không phản hồi).");
-      if (thisTurn === turn.current) setPreparing(false);
+      if (thisTurn === turn.current) {
+        setPreparing(false);
+        setReading(null);
+      }
       return "failed";
     }
-    audio.current = player;
+    const clip = { url: URL.createObjectURL(blob) };
+    const target = player();
+    audio.current = clip;
+    target.src = clip.url;
     const outcome = new Promise((resolve) => { finish.current = resolve; });
-    player.addEventListener("ended", () => {
-      if (audio.current === player) release("ended");
-    }, { once: true });
+    target.onended = () => {
+      if (audio.current === clip) release("ended");
+    };
     try {
-      await player.play();
-      if (audio.current === player) {
+      await target.play();
+      unlocked.current = true;
+      if (audio.current === clip) {
         setSpeaking(true);
         setPreparing(false);
+        followAloud(clip, target, text);
       }
     } catch (err) {
       const blocked = err.name === "NotAllowedError";
       console.warn(`Assistant could not play speech: ${err.message}`);
-      setProblem(blocked
-        ? "Trình duyệt đang chặn tự phát âm thanh. Bấm vào trang một lần hoặc cho phép âm thanh ở thanh địa chỉ."
-        : "Chưa đọc được câu trả lời (dịch vụ giọng nói không phản hồi).");
-      if (audio.current === player) release(blocked ? "blocked" : "failed");
+      if (blocked) {
+        // Kept so the visitor's tap on "Cho phép & nghe" starts it at once, inside that tap.
+        preloaded.current.set(input, blob);
+        setBlockedText(text);
+      } else {
+        setProblem("Chưa đọc được câu trả lời (dịch vụ giọng nói không phản hồi).");
+      }
+      if (audio.current === clip) release(blocked ? "blocked" : "failed");
     }
     return outcome;
-  }, [silence, release]);
+  }, [silence, release, player, followAloud]);
 
   useEffect(() => silence, [silence]);
-  return { say, silence, preload, problem, speaking, preparing };
+  return { say, silence, preload, problem, blockedText, speaking, preparing, reading };
 }

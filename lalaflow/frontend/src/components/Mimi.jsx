@@ -80,6 +80,69 @@ export function Mimi({ state = "idle", season = null, festival = null, celebrate
   return <div ref={host} className={`mimi ${className}`} data-state={state} data-season={season || ""} data-festival={festival || ""} aria-hidden="true" />;
 }
 
+const POKE_REACTION_MS = 2500;
+// Pokes closer together than this count as one streak, which makes her lines escalate.
+const POKE_STREAK_MS = 4000;
+const DIZZY_AFTER_POKES = 4;
+const PARTY_AFTER_POKES = 7;
+// States are the brand kit's; lines are what she says in the bubble. Played in order so a run of pokes never
+// repeats the same line twice in a row.
+const POKE_REACTIONS = [
+  { state: "love", line: "Hí hí, nhột quá à 🙈" },
+  { state: "surprised", line: "Ơ! Ai vừa chọc Mimi đó?" },
+  { state: "wink", line: "Chọc Mimi là phải ghé xem giấy đó nha 😜" },
+  { state: "happy", line: "Meo~ Mimi thích được vuốt ve lắm!" },
+  { state: "love", line: "Bạn dễ thương ghê, Mimi ngại quá à 🙈" },
+];
+const WAKE_REACTIONS = [
+  { state: "surprised", line: "Á! Mimi đâu có ngủ… chỉ nhắm mắt suy nghĩ thôi 😅" },
+  { state: "confused", line: "Ơ… tới ca của Mimi rồi hả? Dậy đây, dậy đây!" },
+];
+const DIZZY = { state: "confused", line: "Thôi thôi, chóng mặt quá rồi nè 😵" };
+const PARTY = { state: "party", line: "Bạn chọc giỏi ghê! Giờ mình đi chọn giấy nha? 🎉", confetti: true };
+
+function pokeReaction({ sleeping, streak, turn }) {
+  if (sleeping) return WAKE_REACTIONS[turn % WAKE_REACTIONS.length];
+  if (streak === PARTY_AFTER_POKES) return PARTY;
+  if (streak === DIZZY_AFTER_POKES) return DIZZY;
+  return POKE_REACTIONS[turn % POKE_REACTIONS.length];
+}
+
+// A Mimi the visitor can poke: she pulls a face and says something funny in a bubble for a moment, and wakes up
+// if she was dozing. `onPoke(state)` lets the assistant's mood know (it restarts her doze timer); `className`
+// sizes and places the mascot as it did on a plain <Mimi>.
+export function PokableMimi({ state = "idle", onPoke, className = "", ...look }) {
+  const [reaction, setReaction] = useState(null);
+  const [confetti, setConfetti] = useState(0);
+  const streak = useRef({ count: 0, at: 0 });
+  const turn = useRef(0);
+
+  useEffect(() => {
+    if (!reaction) return undefined;
+    const timer = setTimeout(() => setReaction(null), POKE_REACTION_MS);
+    return () => clearTimeout(timer);
+  }, [reaction]);
+
+  function poke() {
+    const now = Date.now();
+    const run = streak.current;
+    run.count = now - run.at < POKE_STREAK_MS ? run.count + 1 : 1;
+    run.at = now;
+    const next = pokeReaction({ sleeping: state === "sleep", streak: run.count, turn: turn.current });
+    turn.current += 1;
+    setReaction({ ...next, at: now });
+    if (next.confetti) setConfetti((n) => n + 1);
+    onPoke?.(next.state);
+  }
+
+  return (
+    <button type="button" className={`mimi-poke ${className}`} onClick={poke} aria-label="Chọc Mimi">
+      <Mimi state={reaction?.state || state} celebrate={confetti} className="mimi-poke-figure" {...look} />
+      {reaction && <span key={reaction.at} className="mimi-poke-bubble" role="status">{reaction.line}</span>}
+    </button>
+  );
+}
+
 // An empty or error message with Mimi acting it out beside the text (sad when nothing matches, error when data
 // could not load, …). Keeps the site's .empty-note box.
 export function MimiNote({ state, children, className = "" }) {

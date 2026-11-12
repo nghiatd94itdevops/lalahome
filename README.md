@@ -83,6 +83,9 @@ Chỉ cổng `WEB_PORT` (mặc định 8000) mở ra host; backend và DB nằm 
 | `LALAFLOW_API_UPSTREAM` | `http://127.0.0.1:4000` | Backend mà `/api/*` chuyển tới |
 | `MAX_STREAMS` | `5` | Số luồng nói → chữ cùng lúc |
 | `ASR_MODEL_DIR`, `TTS_MODEL_DIR`, `VAD_MODEL` | thư mục `models/` | Model giọng nói |
+| `ASR_DECODING` | `modified_beam_search` | Cách chọn chữ khi nghe; `greedy_search` = cách cũ, nhanh hơn chút nhưng không dùng được từ ưu tiên |
+| `ASR_HOTWORDS_FILE` | `speech-service/app/asr_hotwords.txt` | Danh sách từ của shop (tên hàng, loại giấy) để nghe đúng hơn. Đặt rỗng để tắt. Sửa file xong phải khởi động lại server |
+| `ASR_HOTWORDS_SCORE` | `5` | Mức ưu tiên các từ trong danh sách; cao quá sẽ "nghe ra" tên hàng ở cả câu không nhắc tới |
 | `AZURE_SPEECH_KEY` | trống | Key tài nguyên Azure Speech. Có key → Mimi đọc bằng giọng Azure; lỗi/hết quota → tự đọc bằng Piper local (bỏ qua Azure 60 giây). Trống = chỉ Piper |
 | `AZURE_SPEECH_REGION` | `southeastasia` | Region của tài nguyên Speech (phải khớp với key) |
 | `AZURE_TTS_VOICE` | `vi-VN-HoaiMyNeural` | Giọng Azure; giọng nam: `vi-VN-NamMinhNeural` |
@@ -113,6 +116,8 @@ cd speech-service\tests
 ..\..\.venv\Scripts\python.exe load_test.py --streams 5  # độ trễ khi 5 luồng cùng nói
 ..\..\.venv\Scripts\python.exe feedback_report.py        # độ chính xác từ đánh giá Đúng/Sai (logs/feedback.jsonl)
 ..\..\.venv\Scripts\python.exe azure_tts_checks.py       # client giọng Azure với endpoint giả (không cần key, không cần server)
+..\..\.venv\Scripts\python.exe stt_eval.py --compare     # tỉ lệ chữ nghe sai: cách cũ / beam / beam + từ của shop (không cần server, ~10 phút)
+..\..\.venv\Scripts\python.exe stt_eval.py --real ghi-am\ # thêm file ghi âm thật: ten.wav + ten.txt (câu đúng); nên có giọng nhiều vùng miền
 ```
 
 Server cần đang chạy ở `http://127.0.0.1:8000` (đổi bằng `--base`).

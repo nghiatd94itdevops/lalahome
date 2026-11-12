@@ -4,7 +4,10 @@ from dataclasses import dataclass
 import numpy as np
 import sherpa_onnx
 
+from . import hotwords
 from .config import Settings, find_model_file
+
+BEAM_SEARCH = "modified_beam_search"
 
 SAMPLE_RATE = 16000
 # Audio kept before VAD triggers, so the first syllable is not clipped from the partial.
@@ -36,7 +39,18 @@ def create_recognizer(settings: Settings) -> sherpa_onnx.OfflineRecognizer:
         tokens=find_model_file(model_dir, "tokens.txt"),
         num_threads=settings.asr_num_threads,
         sample_rate=SAMPLE_RATE,
+        decoding_method=settings.asr_decoding,
+        **_hotword_options(settings),
     )
+
+
+def _hotword_options(settings: Settings) -> dict:
+    # sherpa-onnx only applies hotwords during beam search.
+    if not settings.asr_hotwords_file or settings.asr_decoding != BEAM_SEARCH:
+        return {}
+    vocabulary, phrases = hotwords.prepare(settings.asr_model_dir, settings.asr_hotwords_file, settings.asr_cache_dir)
+    return {"hotwords_file": str(phrases), "hotwords_score": settings.asr_hotwords_score,
+            "modeling_unit": "bpe", "bpe_vocab": str(vocabulary)}
 
 
 def create_vad_config(settings: Settings) -> sherpa_onnx.VadModelConfig:
