@@ -182,6 +182,8 @@ p { margin: 0; }
 .rating-summary { display: flex; align-items: center; gap: .35rem; height: 1.4rem; font-size: .82rem; color: var(--ink-soft); white-space: nowrap; overflow: hidden; }
 .rating-summary strong { color: var(--wood-dark); }
 .rating-summary.is-empty { font-style: italic; opacity: .8; }
+.roll-size { display: block; font-size: .82rem; font-weight: 700; color: var(--wood-dark); }
+.roll-size span { white-space: nowrap; }
 .detail-meta { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 1rem; margin-bottom: .6rem; }
 .detail-rating { padding: 0; background: none; border: 0; font: inherit; cursor: pointer; }
 .detail-rating:hover .rating-summary { text-decoration: underline; }
@@ -356,8 +358,7 @@ p { margin: 0; }
 .mimi-face { display: block; flex: none; }
 .mimi-face svg { display: block; width: 100%; height: auto; }
 .chat-launcher .chat-launcher-mimi { width: 40px; margin: -4px 0; }
-.chat-head-mimi { width: 36px; }
-.chat-head strong { white-space: nowrap; }
+.chat-head-mimi { width: 36px; margin-right: auto; }
 .chat-says { display: flex; align-items: flex-end; gap: .4rem; }
 .chat-avatar { width: 30px; margin-bottom: 2px; }
 .chat-turn.is-assistant > .chat-note, .chat-turn.is-assistant > .chat-products { margin-left: calc(30px + .4rem); width: auto; }
@@ -402,10 +403,7 @@ p { margin: 0; }
 .chat-launcher:hover { background: var(--door-deep); }
 .chat-launcher:focus-visible { outline: 3px solid var(--glow); outline-offset: 3px; }
 .chat-panel { position: fixed; z-index: 45; left: calc(16px + env(safe-area-inset-left, 0px)); bottom: calc(80px + env(safe-area-inset-bottom, 0px)); width: min(400px, calc(100vw - 32px)); height: min(600px, calc(100vh - 110px)); display: flex; flex-direction: column; background: var(--paper); border: 3px solid var(--wood-dark); border-radius: 22px; box-shadow: 0 8px 0 var(--wood-dark), 0 18px 40px rgba(59, 42, 30, .25); overflow: hidden; }
-.chat-head { display: flex; align-items: center; gap: .5rem; padding: .7rem .8rem .7rem 1rem; color: #fff3d6; background: repeating-linear-gradient(90deg, #5a3a22 0 3px, #553620 3px 9px), #5a3a22; }
-.chat-head-text { display: grid; flex: 1 0 auto; min-width: 0; }
-.chat-head strong { font-family: var(--font-sign); font-size: 1.1rem; color: var(--glow); }
-.chat-head span { font-size: .85rem; }
+.chat-head { display: flex; align-items: center; gap: .35rem; padding: .7rem .8rem .7rem 1rem; color: #fff3d6; background: repeating-linear-gradient(90deg, #5a3a22 0 3px, #553620 3px 9px), #5a3a22; }
 .chat-head-action { min-height: 36px; padding: .2rem .6rem; font: 600 .8rem var(--font-body); color: #fff3d6; background: transparent; border: 1.5px solid rgba(255, 243, 214, .5); border-radius: 999px; cursor: pointer; }
 .chat-head-action:disabled { opacity: .5; cursor: default; }
 .chat-close { width: 40px; height: 40px; flex: none; font-size: 1.6rem; line-height: 1; color: #fff3d6; background: transparent; border: 0; border-radius: 50%; cursor: pointer; }
@@ -485,12 +483,10 @@ p { margin: 0; }
    each scroll on their own instead of the page. */
 .site.is-assistant-page { height: 100dvh; display: flex; flex-direction: column; }
 .site.is-assistant-page main { flex: 1; min-height: 0; }
-.assistant-page { height: 100%; max-width: 100rem; margin-inline: auto; display: grid; grid-template-columns: minmax(340px, 30rem) minmax(0, 1fr); gap: 1.2rem; padding: 1.2rem clamp(1rem, 2.5vw, 1.8rem); }
+/* The bottom padding is a lane for the birdhouse button (fixed, bottom-right), so it never covers a panel. */
+.assistant-page { height: 100%; max-width: 100rem; margin-inline: auto; display: grid; grid-template-columns: minmax(340px, 30rem) minmax(0, 1fr); gap: 1.2rem; padding: 1.2rem clamp(1rem, 2.5vw, 1.8rem) 5rem; }
 .assistant-chat { min-height: 0; display: flex; flex-direction: column; background: var(--paper); border: 3px solid var(--wood-dark); border-radius: 22px; box-shadow: 0 6px 0 var(--wood-dark); overflow: hidden; }
-.assistant-head-mimi { width: 64px; margin: -8px 0 -12px; }
-.assistant-head .chat-head-text span { line-height: 1.3; }
-/* Room at the end for the birdhouse button, which floats over the shelf's bottom-right corner. */
-.assistant-shelf { min-height: 0; overflow-y: auto; padding: 1.2rem 1.4rem 5rem; background: var(--paper); border: 2.5px solid var(--wood-dark); border-radius: 22px; box-shadow: 0 6px 0 var(--wood-dark); }
+.assistant-shelf { min-height: 0; overflow-y: auto; padding: 1.2rem 1.4rem; background: var(--paper); border: 2.5px solid var(--wood-dark); border-radius: 22px; box-shadow: 0 6px 0 var(--wood-dark); }
 .assistant-shelf.is-empty { display: grid; align-content: center; justify-items: center; gap: .9rem; padding-bottom: 1.2rem; text-align: center; border-style: dashed; box-shadow: none; }
 .assistant-shelf.is-empty p { max-width: 46ch; color: var(--ink-soft); }
 .shelf-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: .8rem 1.2rem; margin-bottom: 1.2rem; }
@@ -521,8 +517,6 @@ p { margin: 0; }
 @media (max-width: 700px) {
   .assistant-page { grid-template-columns: minmax(0, 1fr); gap: 0; padding: 0 0 calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px)); }
   .assistant-chat { border: 0; border-radius: 0; box-shadow: none; }
-  .assistant-head-mimi { width: 48px; }
-  .assistant-head .chat-head-text span { display: none; }
   /* The panel is already full screen on a phone. */
   .assistant-shelf, .assistant-shelf.is-empty, .shelf-pick, .chat-expand { display: none; }
   .answer-inline-products { display: grid; gap: .45rem; margin-left: calc(30px + .4rem); }
@@ -758,11 +752,7 @@ p { margin: 0; }
 .mimi-return-hint::after { content: ""; position: absolute; left: var(--tip, 50%); bottom: -9px; width: 14px; height: 14px; background: var(--glow); border-right: 2.5px solid var(--wood-dark); border-bottom: 2.5px solid var(--wood-dark); transform: translateX(-50%) rotate(45deg); }
 @keyframes hint-pop { from { opacity: 0; translate: 0 8px; } to { opacity: 1; translate: 0 0; } }
 @media (prefers-reduced-motion: reduce) { .mimi-return-hint { animation: none; } }
-.chat-head .chat-head-action { white-space: nowrap; }
-/* The Mimi face and the launcher already name the panel, so the title gives its room to the buttons on one line. */
-.chat-panel .chat-head-text { display: none; }
-.chat-panel .chat-head-mimi { margin-right: auto; }
-.chat-panel .chat-head { gap: .35rem; }
+.chat-head .chat-head-action { flex: none; white-space: nowrap; }
 /* PokableMimi: the button around a pokeable mascot keeps the size and place of the class it is given, and her
    one-line reaction pops up over her head. :where() keeps "relative" from overriding a fixed or absolute placement. */
 .mimi-poke { display: block; padding: 0; font: inherit; color: inherit; background: none; border: 0; border-radius: 24px; cursor: pointer; -webkit-tap-highlight-color: transparent; }
@@ -779,3 +769,8 @@ p { margin: 0; }
 @media (prefers-reduced-motion: reduce) { .mimi-poke-figure { transition: none; } .mimi-poke-bubble { animation: none; } }
 /* The stage scrolls, so it would clip a poke bubble above Mimi's head: leave room for one two-line bubble. */
 .mimi-talk-stage { padding-top: 3.6rem; }
+/* "Đề xuất N" on a product card, with the button that picks it on the newest answer. */
+.suggestion-label { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem .5rem; }
+.suggestion-number { display: inline-block; padding: .1rem .55rem; border-radius: 999px; background: var(--roof); color: #fff; font-family: var(--font-sign); font-weight: 800; font-size: .8rem; }
+.suggestion-choose { min-height: 32px; padding: .2rem .7rem; border: 1.5px solid var(--door); border-radius: 999px; background: #fff; color: var(--door-deep); font: inherit; font-family: var(--font-sign); font-weight: 700; font-size: .82rem; cursor: pointer; }
+.suggestion-choose:hover, .suggestion-choose:focus-visible { background: var(--door); color: #fff; }

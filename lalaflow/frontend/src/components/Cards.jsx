@@ -46,6 +46,26 @@ export function RatingStars({ value, size = "md" }) {
   );
 }
 
+const CM_PER_M = 100;
+const measure = (value) => Number(value).toLocaleString("vi-VN", { maximumFractionDigits: 2 });
+
+// Roll width and length come from the database as DECIMAL strings; null when the product is not sold by the roll.
+export function rollSize(product) {
+  const widthCm = Number(product.roll_width_cm);
+  const lengthM = Number(product.roll_length_m);
+  if (!(widthCm > 0 && lengthM > 0)) return null;
+  return {
+    dimensions: `${measure(widthCm)} cm × ${measure(lengthM)} m`,
+    coverage: `${measure((widthCm / CM_PER_M) * lengthM)} m²/${product.unit || "cuộn"}`,
+  };
+}
+
+export function RollSize({ product }) {
+  const size = rollSize(product);
+  if (!size) return null;
+  return <span className="roll-size">{size.dimensions} · <span>{size.coverage}</span></span>;
+}
+
 // Always rendered, even without reviews, so every product card keeps the same rows and stays aligned.
 export function RatingSummary({ rating }) {
   if (!rating?.count) return <span className="rating-summary is-empty">Chưa có đánh giá</span>;
@@ -74,6 +94,7 @@ export function ProductCard({ product }) {
         <span className="kicker">{product.category}</span>
         <h3>{product.name}</h3>
         <RatingSummary rating={product.rating} />
+        <RollSize product={product} />
         <p>{product.description || PRODUCT_FALLBACK}</p>
         <div className="product-foot">
           <span className="product-price">{money(product.price)}{product.unit && <small> / {product.unit}</small>}</span>

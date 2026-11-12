@@ -1,10 +1,13 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 // The brand kit in /LaLaHome is the single source of the mascot: these scripts define window.MIMI_ASSETS and
 // window.MimiBot (states, seasons, festivals). Updating the kit there updates the site on the next build.
-import "../../../../LaLaHome/mimi-svg.js";
-import "../../../../LaLaHome/mimi-bot.js";
+// Trial of the newer kit in /LaLaHome/LaLaHome, which adds the chubby cat; the letter-L kit one folder up is kept
+// for rollback (this kit also still draws "L", so setting VARIANT back is enough).
+import "../../../../LaLaHome/LaLaHome/mimi-svg.js";
+import "../../../../LaLaHome/LaLaHome/mimi-bot.js";
 
 const PERSONA = "friendly";
+const VARIANT = "chubby";
 const SHOP_TIME_ZONE = "Asia/Ho_Chi_Minh";
 const DAY_MS = 24 * 60 * 60 * 1000;
 // Lunar holidays as solar dates (the kit has no lunar calendar). Extend the table after 2030.
@@ -52,8 +55,32 @@ export function useMimiNow() {
   }, []);
   return now;
 }
-// Crop of the 400×410 drawing around the head and origami ears (head centre 178,148, radius 100).
-const HEAD_VIEW_BOX = "62 14 232 236";
+// Crop of the 400×410 drawing around the head and ears, placed from the kit's head centre for the variant (for "L"
+// that is 178,148, giving 62 14 232 236).
+const HEAD_CROP = { left: 116, top: 134, width: 232, height: 236 };
+
+function headViewBox(variant) {
+  const { cx, cy } = window.MIMI_ASSETS.VARIANT_GEO[variant].head;
+  return `${cx - HEAD_CROP.left} ${cy - HEAD_CROP.top} ${HEAD_CROP.width} ${HEAD_CROP.height}`;
+}
+
+// The kit's still drawing for a variant, with a resting face. The chubby cat's head art must sit under its ears,
+// which the animated bot fixes after building; done here the same way.
+function stillMascotMarkup(prefix, variant) {
+  const { buildSVG, buildFace, buildChubbyFace } = window.MIMI_ASSETS;
+  const isChubby = variant === "chubby";
+  const face = (isChubby ? buildChubbyFace : buildFace)(prefix, { eyes: "happy", mouth: "w" });
+  const markup = buildSVG(prefix, variant)
+    .replace(/viewBox="[^"]*"/, `viewBox="${headViewBox(variant)}"`)
+    .replace('<g class="mm-face"></g>', `<g class="mm-face">${face}</g>`);
+  if (!isChubby) return markup;
+  const template = document.createElement("template");
+  template.innerHTML = markup;
+  const headArt = template.content.querySelector(".mm-art-head")?.parentNode;
+  const leftEar = template.content.querySelector(".mm-earw-l");
+  if (headArt && leftEar) leftEar.parentNode.insertBefore(headArt, leftEar);
+  return template.innerHTML;
+}
 
 // The live mascot. `state` is one of the kit's 33 states (idle, greet, thinking, success, …); changing `celebrate`
 // to a new number fires a confetti burst. Decorative only, so hidden from screen readers.
@@ -63,7 +90,7 @@ export function Mimi({ state = "idle", season = null, festival = null, celebrate
 
   useEffect(() => {
     // The speech bubble stays off: the owner asked for no message bubble above the mascot.
-    const instance = new window.MimiBot(host.current, { persona: PERSONA, state, season, festival, bubble: false });
+    const instance = new window.MimiBot(host.current, { persona: PERSONA, variant: VARIANT, state, season, festival, bubble: false });
     bot.current = instance;
     return () => {
       instance.destroy();
@@ -158,13 +185,7 @@ export function MimiNote({ state, children, className = "" }) {
 // so a long conversation does not run dozens of animated mascots.
 export function MimiFace({ className = "" }) {
   const prefix = `mf${useId().replace(/[^a-zA-Z0-9]/g, "")}_`;
-  const markup = useMemo(() => {
-    const { buildSVG, buildFace, deriveColors } = window.MIMI_ASSETS;
-    const face = buildFace(prefix, { eyes: "happy", mouth: "w" });
-    return buildSVG(prefix, "L")
-      .replace(/viewBox="[^"]*"/, `viewBox="${HEAD_VIEW_BOX}"`)
-      .replace('<g class="mm-face"></g>', `<g class="mm-face">${face}</g>`);
-  }, [prefix]);
+  const markup = useMemo(() => stillMascotMarkup(prefix, VARIANT), [prefix]);
   const colors = useMemo(() => {
     const vars = window.MIMI_ASSETS.deriveColors({});
     // The collar takes the state colour (--mm-s*); a resting face uses the brand accent, as the "idle" state does.

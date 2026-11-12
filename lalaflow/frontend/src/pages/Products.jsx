@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { formatDate, getJson, money, postJson } from "../api.js";
-import { ProductCard, ProductImage, RatingStars, RatingSummary, StatusPill } from "../components/Cards.jsx";
+import { ProductCard, ProductImage, RatingStars, RatingSummary, rollSize, StatusPill } from "../components/Cards.jsx";
 import { PaintedPanel, SectionHead } from "../components/Scenery.jsx";
 import { Mimi, MimiNote } from "../components/Mimi.jsx";
 import { PageHero } from "../components/Shell.jsx";
@@ -324,6 +324,7 @@ export function ProductDetail({ content, products, dataState }) {
   const sameCategory = products.filter((p) => p.id !== product.id && p.category === product.category);
   const others = products.filter((p) => p.id !== product.id && p.category !== product.category);
   const related = [...sameCategory, ...others].slice(0, RELATED_COUNT);
+  const roll = rollSize(product);
 
   return (
     <>
@@ -369,6 +370,8 @@ export function ProductDetail({ content, products, dataState }) {
               {product.unit && <em>/ {product.unit}</em>}
             </div>
             <ul className="spec-list">
+              {roll && <li><span>Kích thước</span>{roll.dimensions}</li>}
+              {roll && <li><span>Diện tích</span>{roll.coverage}</li>}
               <li><span>Tồn kho</span>{product.stock} {product.unit || "đơn vị"}</li>
               <li><span>Danh mục</span>{product.category}</li>
               <li><span>Giao hàng</span>Toàn quốc</li>

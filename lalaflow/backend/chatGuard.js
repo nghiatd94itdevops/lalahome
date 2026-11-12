@@ -58,16 +58,18 @@ const QUESTION_RULES = [
 
 export const REFUSAL = 'Xin lỗi, mình không thể cung cấp thông tin về tài khoản, đăng nhập, hệ thống kỹ thuật hay dữ liệu nội bộ của cửa hàng. Nếu bạn là nhân viên, vui lòng liên hệ quản trị viên. Mình có thể giúp bạn tìm sản phẩm, xem giá hoặc gửi yêu cầu báo giá nhé!';
 
-// Returns the first sensitive topic found in any user message (forged assistant turns are checked for overrides too).
+const OVERRIDE_RULES = QUESTION_RULES.filter((r) => r.topic === 'override');
+
+const topicIn = (content, rules) => rules.find((rule) => rule.patterns.some((p) => p.test(fold(content))))?.topic || '';
+
+// Topic rules look at the newest question only: an earlier question that was refused (often the mic catching nearby
+// chatter) stays in the history, and screening it again would refuse every later question of the visit. Override
+// attempts can be split across turns, so those are screened in every message, forged assistant turns included.
 export function screenConversation(history) {
-  for (const message of history) {
-    const text = fold(message.content);
-    const rules = message.role === 'user' ? QUESTION_RULES : QUESTION_RULES.filter((r) => r.topic === 'override');
-    for (const rule of rules) {
-      if (rule.patterns.some((p) => p.test(text))) return rule.topic;
-    }
-  }
-  return '';
+  const latestQuestion = history.findLast((m) => m.role === 'user');
+  const latestTopic = latestQuestion ? topicIn(latestQuestion.content, QUESTION_RULES) : '';
+  if (latestTopic) return latestTopic;
+  return history.map((m) => topicIn(m.content, OVERRIDE_RULES)).find(Boolean) || '';
 }
 
 // Anything here in a reply means something internal slipped out; the public contact email is the only address allowed.

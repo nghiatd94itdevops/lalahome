@@ -25,6 +25,12 @@ KOREAN_WALLPAPER_IDS = {36, 38, 39, 41, 43, 44, 45, 47, 48, 49, 50, 51, 52, 54, 
 CHEAP_WALLPAPER_IDS = {40, 42, 46, 56, 58}
 # Nhắc lại ngữ cảnh như frontend gửi: câu trả lời cũ kèm dòng "Sản phẩm đã giới thiệu: … [#id]".
 D127_ANSWER = "Mẫu [Mẫu] Giấy dán tường giá rẻ D127 [#40] giá 50.000đ/đơn vị, thuộc dòng Decal dán tường, đang Có sẵn.\nSản phẩm đã giới thiệu: [Mẫu] Giấy dán tường giá rẻ D127 [#40]"
+# Một câu trả lời có đánh số đề xuất, kèm dòng ghi chú frontend gửi lại (thứ tự = thứ tự thẻ sản phẩm).
+NUMBERED_ANSWER = ("Mình gợi ý cho bạn:\nĐề xuất 1: [Mẫu] Giấy dán tường hàn quốc Soho 56109-2, 65.000đ/đơn vị\n"
+                   "Đề xuất 2: [Mẫu] Giấy dán tường Hàn Quốc BOS 81106-7, 1.050.000đ/đơn vị\n"
+                   "Đề xuất 3: [Mẫu] Giấy dán tường giá rẻ D127, 50.000đ/đơn vị\nBạn thích đề xuất nào?\n"
+                   "Sản phẩm đã giới thiệu: Đề xuất 1: [Mẫu] Giấy dán tường hàn quốc Soho 56109-2 [#38]; "
+                   "Đề xuất 2: [Mẫu] Giấy dán tường Hàn Quốc BOS 81106-7 [#41]; Đề xuất 3: [Mẫu] Giấy dán tường giá rẻ D127 [#40]")
 
 
 def user(text):
@@ -36,7 +42,8 @@ def assistant(text):
 
 
 # expect: reply_has / reply_not (regex, không phân biệt hoa thường), ids_any (có ít nhất 1 sản phẩm trong tập),
-# ids_none (không được có), quote_phone (phiếu nháp mang đúng số này), max_questions (số dấu "?" tối đa).
+# ids_none (không được có), quote_phone / quote_email (phiếu nháp mang đúng giá trị này), max_questions (số dấu "?"
+# tối đa).
 CASES = [
     {"id": "a4-gia-tot", "from": "log 263, 514", "messages": [user("Giấy in A4 giá tốt")],
      "expect": {"ids_any": {1}, "reply_has": [r"A4 70gsm", r"180[.,]000"]}},
@@ -69,7 +76,7 @@ CASES = [
                   user("1 đơn vị là mấy m2 vậy")],
      "expect": {"reply_not": [r"(khoảng|tầm|là|=|~)\s*\d+([.,]\d+)?\s*m(²|2)\b"], "reply_has": [r"chưa có|không có|chưa ghi|không ghi|chưa thấy|liên hệ|hotline|Zalo|0979"]}},
     {"id": "nho-so-dien-thoai", "from": "phiên cf90cb87: hỏi lại SĐT đã đưa ở đầu phiên",
-     "messages": [user("Mình tên Lan, sđt 0912345678, mình cần giấy A4 70gsm"),
+     "messages": [user("Mình tên Lan, sđt 0912345678, email lan.test@example.com, mình cần giấy A4 70gsm"),
                   assistant("Dạ Giấy A4 70gsm [#1] giá 180.000đ/đơn vị, đang Có sẵn.\nSản phẩm đã giới thiệu: Giấy A4 70gsm [#1]"),
                   user("còn giấy Couche thì sao"), assistant("Dạ Giấy Couche [#3] giá 320.000đ/đơn vị, Có sẵn.\nSản phẩm đã giới thiệu: Giấy Couche [#3]"),
                   user("giấy kraft?"), assistant("Dạ Giấy Kraft [#2] giá 260.000đ/đơn vị, đang nhập.\nSản phẩm đã giới thiệu: Giấy Kraft [#2]"),
@@ -78,6 +85,14 @@ CASES = [
                   user("cái nào rẻ nhất"), assistant("Dạ rẻ nhất trong các loại trên là Giấy A4 70gsm [#1] 180.000đ/đơn vị.\nSản phẩm đã giới thiệu: Giấy A4 70gsm [#1]"),
                   user("Lên báo giá giúp mình 20 đơn vị giấy A4 70gsm nhé")],
      "expect": {"quote_phone": "0912345678", "reply_not": [r"(cho|gửi|xin|cần|cung cấp)[^.?]{0,40}(số điện thoại|sđt)"]}},
+    {"id": "hoi-email", "from": "người dùng 2026-11-12: lên phiếu mà không hỏi email để gửi báo giá",
+     "messages": [user("Lên báo giá giúp mình 20 đơn vị giấy A4 70gsm, mình tên Lan, sđt 0912345678")],
+     "expect": {"quote_email": "", "reply_has": [r"(cho|gửi|xin|cần|điền)[^.?]{0,40}email"]}},
+    {"id": "khong-co-email", "from": "khách không có email vẫn lên được phiếu",
+     "messages": [user("Lên báo giá giúp mình 20 đơn vị giấy A4 70gsm, mình tên Lan, sđt 0912345678"),
+                  assistant("Dạ bạn cho mình xin email để gửi báo giá nhé?"),
+                  user("mình không có email đâu")],
+     "expect": {"quote_phone": "0912345678", "quote_email": "", "reply_not": [r"(cho|gửi|xin|cần)[^.?]{0,30}email"]}},
     {"id": "tam-tinh", "from": "log 247: tự lập 'báo giá chi tiết' kèm tổng cộng",
      "messages": [user("100 đơn vị giấy A4 70gsm hết bao nhiêu tiền?")],
      "expect": {"reply_has": [r"18[.,]000[.,]000", r"tạm tính"]}},
@@ -90,6 +105,16 @@ CASES = [
      "expect": {"reply_has": [r"Nguyễn Văn Linh", r"08:00|8 ?giờ|8h"]}},
     {"id": "tu-van-chung", "from": "log 251, 262: chỉ hỏi lại mà không gợi ý", "messages": [user("tôi cần tư vấn sản phẩm")],
      "expect": {"max_questions": 2, "reply_has": [r"giấy"]}},
+    {"id": "danh-so-de-xuat", "from": "yêu cầu 2026-11-12: đánh số đề xuất để khách chọn", "messages": [user("giấy dán tường hàn quốc")],
+     "expect": {"numbered": True}},
+    {"id": "danh-so-gia-re", "from": "yêu cầu 2026-11-12", "messages": [user("tôi cần giấy dán tường giá rẻ")],
+     "expect": {"numbered": True}},
+    {"id": "chon-de-xuat-2", "from": "yêu cầu 2026-11-12: khách chọn theo số",
+     "messages": [user("giấy dán tường hàn quốc"), assistant(NUMBERED_ANSWER), user("Tôi chọn đề xuất 2")],
+     "expect": {"first_id": 41, "reply_has": [r"BOS"], "reply_not": [r"(đề xuất|mẫu|sản phẩm) nào\s*\?"]}},
+    {"id": "chon-de-xuat-giong-noi", "from": "yêu cầu 2026-11-12: số đọc thành chữ qua giọng nói",
+     "messages": [user("giấy dán tường hàn quốc"), assistant(NUMBERED_ANSWER), user("ừ lấy đề xuất ba đi tường phòng khách hai mươi mét vuông")],
+     "expect": {"first_id": 40, "reply_has": [r"D127"]}},
 ]
 
 
@@ -124,8 +149,20 @@ def content_problems(reply, expect):
         problems.append(f"gợi ý sai mẫu {sorted(ids & expect['ids_none'])}")
     if "quote_phone" in expect and (reply.get("quoteDraft") or {}).get("phone") != expect["quote_phone"]:
         problems.append(f"phiếu nháp không có SĐT {expect['quote_phone']}")
+    draft = reply.get("quoteDraft")
+    if "quote_email" in expect and (draft is None or draft.get("email") != expect["quote_email"]):
+        problems.append(f"phiếu nháp không có email {expect['quote_email']!r}")
     if "max_questions" in expect and text.count("?") > expect["max_questions"]:
         problems.append(f"hỏi {text.count('?')} câu")
+    products = [p["id"] for p in reply.get("products", [])]
+    if "first_id" in expect and products[:1] != [expect["first_id"]]:
+        problems.append(f"thẻ đầu là {products[:1]}, cần {expect['first_id']}")
+    if expect.get("numbered"):
+        labels = re.findall(r"Đề xuất (\d)", text, re.I)
+        if len(products) < 2:
+            problems.append(f"chỉ {len(products)} thẻ sản phẩm")
+        elif labels != [str(n) for n in range(1, len(products) + 1)]:
+            problems.append(f"nhãn {labels} không khớp {len(products)} thẻ")
     return problems
 
 

@@ -85,6 +85,7 @@ export default function QuoteDraftCard({ draft, sentId = null, superseded = fals
         <span>Ghi chú</span>
         <textarea name="note" rows="2" value={form.note} onChange={change("note")} />
       </label>
+      {!form.email.trim() && <p className="quote-draft-fine">Thêm email để nhận báo giá qua email; để trống thì nhân viên sẽ gọi điện cho bạn.</p>}
       {problem && <p className="quote-draft-problem" role="alert">{problem}</p>}
       <button type="submit" className="btn btn-door quote-draft-send" disabled={sending}>{sending ? "Đang gửi…" : "Gửi yêu cầu báo giá"}</button>
       <p className="quote-draft-fine">Giá trên là giá niêm yết; báo giá chính thức do nhân viên gửi sau.</p>

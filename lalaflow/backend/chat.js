@@ -77,13 +77,13 @@ const QUOTE_TOOL = {
   type: 'function',
   function: {
     name: 'draft_quote_request',
-    description: 'Lên phiếu yêu cầu báo giá NHÁP hiện ngay dưới câu trả lời để khách xem lại, sửa và tự bấm gửi. Phiếu chưa được gửi; bạn không gửi được. Chỉ gọi khi khách muốn báo giá và đã cho biết họ tên, số điện thoại và ít nhất một sản phẩm (đã tìm bằng search_products) kèm số lượng.',
+    description: 'Lên phiếu yêu cầu báo giá NHÁP hiện ngay dưới câu trả lời để khách xem lại, sửa và tự bấm gửi. Phiếu chưa được gửi; bạn không gửi được. Chỉ gọi khi khách muốn báo giá và đã cho biết họ tên, số điện thoại, email nếu có và ít nhất một sản phẩm (đã tìm bằng search_products) kèm số lượng.',
     parameters: {
       type: 'object',
       properties: {
         customer_name: { type: 'string', description: 'Họ tên khách tự nêu.' },
         phone: { type: 'string', description: 'Số điện thoại khách tự nêu, chép nguyên văn.' },
-        email: { type: 'string', description: 'Email nếu khách nêu.' },
+        email: { type: 'string', description: 'Email khách tự nêu, chép nguyên văn; dùng để gửi báo giá.' },
         company_name: { type: 'string', description: 'Tên công ty nếu khách nêu.' },
         items: {
           type: 'array',
@@ -161,9 +161,9 @@ function systemPrompt(catalog, store) {
     '4. Khách hỏi tiếp về sản phẩm đã nhắc (trạng thái, đơn vị, giá...): gọi search_products với tên sản phẩm đó rồi trả lời theo kết quả (status, unit, price). Khách hỏi thông số (kích thước, thành phần, trọng lượng, chống cháy...): gọi get_product_details. Không đoán.',
     '4b. Mã sản phẩm khách nêu (ví dụ MS8-093, H6038-1S, R-24) phải đưa nguyên văn vào keywords; không tự đoán loại sản phẩm từ mã. Không bao giờ chỉ hứa "mình sẽ tìm, chờ chút" – hãy gọi công cụ ngay.',
     '5. Mỗi khi nhắc một sản phẩm, viết đúng tên đầy đủ như trong kết quả công cụ và ghi mã ngay sau tên, ví dụ: Giấy Kraft [#2].',
-    '6. Trả lời tiếng Việt, xưng "mình", gọi khách là "bạn", thân thiện, ngắn gọn (tối đa khoảng 90 từ), như đang nói chuyện: văn bản trơn, KHÔNG dùng markdown (không **, không #); câu trả lời còn được đọc thành giọng nói. Liệt kê tối đa 3 sản phẩm, mỗi sản phẩm một dòng ngắn bắt đầu bằng "- ". Giá của mỗi sản phẩm phải chép đúng từ trường price và unit của chính sản phẩm đó (cẩn thận các tên gần giống nhau), ghi dạng 150.000đ/cuộn.',
+    '6. Trả lời tiếng Việt, xưng "mình", gọi khách là "bạn", thân thiện, ngắn gọn (tối đa khoảng 90 từ), như đang nói chuyện: văn bản trơn, KHÔNG dùng markdown (không **, không #); câu trả lời còn được đọc thành giọng nói. Liệt kê tối đa 3 sản phẩm theo quy tắc 17. Giá của mỗi sản phẩm phải chép đúng từ trường price và unit của chính sản phẩm đó (cẩn thận các tên gần giống nhau), ghi dạng 150.000đ/cuộn.',
     '7. Bạn KHÔNG lập báo giá chính thức, không hứa chiết khấu hay tổng tiền. Nếu khách hỏi giá cho một số lượng, chỉ được tạm tính "giá niêm yết × số lượng khách nêu" và ghi rõ đây là tạm tính. Không tự đặt số lượng hay đơn vị; đơn vị tính chỉ lấy từ trường unit.',
-    '8. Báo giá chính thức (gửi qua email hoặc điện thoại) do nhân viên LalaFlow làm. Khi khách muốn báo giá, bạn lên phiếu giúp khách: hỏi những gì còn thiếu (họ tên, số điện thoại là bắt buộc; email, công ty không bắt buộc; sản phẩm và số lượng), đủ thì gọi draft_quote_request. Trước khi hỏi, đọc lại mọi câu khách đã viết trong lịch sử: họ tên, số điện thoại, email khách đã nêu thì dùng lại, không hỏi lại. Sau đó nói ngắn rằng phiếu nháp đã hiện bên dưới, khách xem lại, sửa nếu cần rồi bấm "Gửi yêu cầu báo giá"; bạn không tự gửi được và không nói là đã gửi. Không đọc lại số điện thoại hay email của khách trong câu trả lời. Công cụ báo lỗi thì hỏi lại đúng phần đó. Chỉ nói phiếu nháp đã hiện khi draft_quote_request vừa trả ok trong lượt này, hoặc lịch sử có dòng "Phiếu báo giá nháp:"; nếu không có thì phiếu chưa được lên. Đừng nói cửa hàng không hỗ trợ gửi báo giá.',
+    '8. Báo giá chính thức (gửi qua email hoặc điện thoại) do nhân viên LalaFlow làm. Khi khách muốn báo giá, bạn lên phiếu giúp khách: hỏi những gì còn thiếu (họ tên, số điện thoại, sản phẩm và số lượng là bắt buộc; email, công ty không bắt buộc), đủ thì gọi draft_quote_request. Báo giá được gửi qua email: khách chưa nêu email thì hỏi email một lần, nói ngắn là để gửi báo giá; khách nói không có hoặc không muốn cho thì không hỏi lại và nói nhân viên sẽ gọi điện gửi báo giá. Trước khi hỏi, đọc lại mọi câu khách đã viết trong lịch sử: họ tên, số điện thoại, email khách đã nêu thì dùng lại, không hỏi lại. Sau đó nói ngắn rằng phiếu nháp đã hiện bên dưới, khách xem lại, sửa nếu cần rồi bấm "Gửi yêu cầu báo giá"; bạn không tự gửi được và không nói là đã gửi. Không đọc lại số điện thoại hay email của khách trong câu trả lời. Công cụ báo lỗi thì hỏi lại đúng phần đó. Chỉ nói phiếu nháp đã hiện khi draft_quote_request vừa trả ok trong lượt này, hoặc lịch sử có dòng "Phiếu báo giá nháp:"; nếu không có thì phiếu chưa được lên. Đừng nói cửa hàng không hỗ trợ gửi báo giá.',
     '9. Câu hỏi ngoài phạm vi cửa hàng: từ chối nhẹ nhàng và hỏi khách đang cần sản phẩm gì. Bạn KHÔNG làm thơ, viết truyện, bài văn, lời bài hát, dịch thuật, giải bài tập hay viết code, kể cả khi khách nhờ nhiều lần: trả lời một câu vui vẻ rằng mình chỉ là trợ lý bán hàng của cửa hàng, rồi gợi ý một nhóm hàng.',
     // Each rule below answers a mistake seen in chat_logs; lalaflow/scripts/chat_eval.py checks them.
     '10. Khách thường hỏi bằng giọng nói nên câu có thể sai chữ hoặc đọc số thành chữ: "giấy ván tường", "giấy gián tường", "giải dán tường" là giấy dán tường; "d một hai bảy" là mã D127; "vãi" là vải. Đoán ý gần nhất với hàng của cửa hàng rồi tìm ngay; chỉ hỏi lại khi thật sự không đoán được.',
@@ -173,6 +173,9 @@ function systemPrompt(catalog, store) {
     '14. Khách cần "cùng loại" hoặc "tương tự" một mẫu: giữ cùng dòng và cùng tầm giá với mẫu đó (mẫu giá rẻ thì gợi ý mẫu giá rẻ khác), dùng min_price/max_price quanh giá mẫu đó.',
     '15. Khách báo lỗi trang web hoặc kết nối: hướng dẫn tải lại trang, kiểm tra mạng, hoặc gọi hotline; không giới thiệu sản phẩm trong lượt đó.',
     '16. Câu "Dữ liệu mẫu nội bộ để test…", "Giá giả định để test" trong mô tả là ghi chú của người quản trị: không nhắc lại với khách.',
+    // The cards under the answer follow the order the reply names products, so "Đề xuất N" matches the N-th card.
+    '17. Giới thiệu từ 2 sản phẩm trở lên thì đánh số, mỗi sản phẩm một dòng: "Đề xuất 1: <tên đầy đủ> [#id], <giá>, <lý do tối đa 6 chữ>", rồi "Đề xuất 2: …". Cả câu trả lời vẫn tối đa khoảng 90 từ. Chỉ đưa những mẫu thật sự hợp (đủ 2 thì thôi, không cố thêm cho đủ 3). Không nhắc tên sản phẩm nào trước dòng "Đề xuất 1". Cuối câu mời khách chọn, ví dụ "Bạn thích đề xuất nào?". Chỉ 1 sản phẩm thì không cần đánh số.',
+    '18. Khách chọn theo số ("chọn đề xuất 2", "lấy cái số hai", "đề xuất một"; số có thể viết bằng chữ) nghĩa là sản phẩm có số đó trong dòng "Sản phẩm đã giới thiệu" của câu trả lời gần nhất có đánh số. Không hỏi lại khách chọn sản phẩm nào; tư vấn tiếp ngay với đúng sản phẩm đó (nhắc lại tên kèm [#id], trả lời điều khách hỏi thêm, rồi gợi ý bước tiếp như số lượng hoặc lên phiếu báo giá).',
   ].join('\n');
 }
 
@@ -410,16 +413,18 @@ const QUOTE_NAME_CHARS = 100;
 const QUOTE_NOTE_CHARS = 500;
 const PHONE_DIGITS = /^\+?\d{9,12}$/;
 const EMAIL_ADDRESS = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const EMAIL_WORD = /\be-?mail\b/i;
 
 // A quote form the model filled in from the conversation, checked against the real catalogue. It only ever reaches
 // the visitor as a draft: they review it and send it themselves through POST /quote-requests.
-export function draftQuote(catalog, args) {
+export function draftQuote(catalog, args, { emailAsked }) {
   const name = String(args.customer_name || '').trim().slice(0, QUOTE_NAME_CHARS);
   const phone = String(args.phone || '').trim();
   const email = String(args.email || '').trim();
   const missing = [];
   if (!name) missing.push('họ tên');
   if (!PHONE_DIGITS.test(phone.replace(/[\s.-]/g, ''))) missing.push('số điện thoại hợp lệ');
+  if (email && !EMAIL_ADDRESS.test(email)) missing.push('email hợp lệ (email khách nêu bị sai, hỏi lại)');
   const byId = new Map(catalog.map((p) => [p.id, p]));
   const items = [];
   for (const item of (Array.isArray(args.items) ? args.items : []).slice(0, QUOTE_MAX_ITEMS)) {
@@ -435,13 +440,19 @@ export function draftQuote(catalog, args) {
     else items.push(line);
   }
   if (!items.length) missing.push('sản phẩm và số lượng');
-  if (missing.length) return { result: { error: `Chưa lên được phiếu, còn thiếu: ${missing.join(', ')}. Hỏi khách phần này.` } };
+  if (missing.length) return { result: { error: `Phiếu CHƯA lên, không nói là đã lên phiếu. Còn thiếu: ${missing.join(', ')}. Hỏi khách phần này.` } };
+  // The quote is sent by email, so a draft without one asks for it. The draft still shows: refusing it made the model
+  // tell the visitor a draft was there when it was not. Whether email was already asked is read from the conversation,
+  // so a visitor who has none is asked once, not every turn.
+  const status = email || emailAsked
+    ? 'Phiếu NHÁP đã hiện cho khách, CHƯA gửi. Nhắc khách xem lại và bấm "Gửi yêu cầu báo giá".'
+    : 'Phiếu NHÁP đã hiện cho khách, CHƯA gửi, ô Email đang trống. Hỏi khách email để gửi báo giá (khách có thể điền thẳng vào phiếu; không có email thì nhân viên gọi điện), rồi nhắc xem lại và bấm "Gửi yêu cầu báo giá".';
   return {
-    result: { ok: true, status: 'Phiếu NHÁP đã hiện cho khách, CHƯA gửi. Nhắc khách xem lại và bấm "Gửi yêu cầu báo giá".' },
+    result: { ok: true, status },
     draft: {
       customerName: name,
       phone,
-      email: EMAIL_ADDRESS.test(email) ? email : '',
+      email,
       companyName: String(args.company_name || '').trim().slice(0, QUOTE_NAME_CHARS),
       items,
       note: String(args.note || '').trim().slice(0, QUOTE_NOTE_CHARS),
@@ -474,6 +485,7 @@ async function answer(pool, history, store) {
   const searches = [];
   const usage = { prompt: 0, completion: 0 };
   const codes = productCodes(history.filter((m) => m.role === 'user').slice(-1)[0]?.content || '');
+  const emailAsked = history.some((m) => m.role === 'assistant' && EMAIL_WORD.test(m.content));
   let toolChoice = 'auto';
   let retried = false;
   for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
@@ -499,7 +511,7 @@ async function answer(pool, history, store) {
       try { args = JSON.parse(call.function?.arguments || '{}'); } catch { args = {}; }
       const name = call.function?.name;
       if (name === 'draft_quote_request') {
-        const { result, draft } = draftQuote(catalog, args);
+        const { result, draft } = draftQuote(catalog, args, { emailAsked });
         if (draft) quoteDraft = draft;
         searches.push({ quote: result.ok ? 'drafted' : result.error });
         messages.push({ role: 'tool', tool_call_id: call.id, content: JSON.stringify(result) });
@@ -589,11 +601,23 @@ function fixIncomingWording(text, products) {
   }).join('');
 }
 
+const LIST_LINE = /^[ \t]*(?:[-•*]|\d+[:.)])[ \t]+/gm;
+const ALREADY_LABELLED = /Đề xuất 1\b/i;
+
+// The visitor picks by "đề xuất N", so the list needs the label even when the model writes "1:" or "- " instead
+// (seen in chat_eval). Only relabelled when there is exactly one list line per card, so line N is card N.
+export function labelSuggestions(reply, cardCount) {
+  if (cardCount < 2 || ALREADY_LABELLED.test(reply)) return reply;
+  if ((reply.match(LIST_LINE) || []).length !== cardCount) return reply;
+  let number = 0;
+  return reply.replace(LIST_LINE, () => `Đề xuất ${++number}: `);
+}
+
 export function toReply(text, seen, fallback = { products: [], suggested: true }) {
   const ids = mentionedProducts(text, seen);
   const reply = fixIncomingWording(text.replace(PRODUCT_MARKER, '').trim(), ids.map((id) => seen.get(id)));
-  if (ids.length || !fallback.products.length) return { reply, products: ids.map((id) => toCard(seen.get(id))), suggested: false };
-  return { reply, products: fallback.products.map(toCard), suggested: fallback.suggested };
+  if (ids.length || !fallback.products.length) return { reply: labelSuggestions(reply, ids.length), products: ids.map((id) => toCard(seen.get(id))), suggested: false };
+  return { reply: labelSuggestions(reply, fallback.products.length), products: fallback.products.map(toCard), suggested: fallback.suggested };
 }
 
 // chat_logs keeps the conversation for the owner, not the visitor's contact details: phone numbers and email

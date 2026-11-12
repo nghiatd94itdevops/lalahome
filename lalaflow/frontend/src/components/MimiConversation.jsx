@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { PokableMimi } from "./Mimi.jsx";
-import { BlockedSpeechPrompt, ChatProducts, MessageQuote, spokenSoFar } from "./ChatAssistant.jsx";
+import { BlockedSpeechPrompt, ChatProducts, chooserFor, MessageQuote, spokenSoFar } from "./ChatAssistant.jsx";
 
 export const MIMI_GREETING = "Chào bạn, mình là Mimi, trợ lý AI của LaLa Home. Mình có thể giúp gì cho bạn?";
 // When the visitor comes back to the screen in the same visit she carries on instead of introducing herself again.
@@ -142,7 +142,7 @@ export default function MimiConversation({ assistant, onClose, onBrowse, onOpenC
           {heard && <p className="mimi-talk-heard"><span>Bạn:</span> {heard}</p>}
         </div>
         {finished && reply.products?.length > 0 && (
-          <div className="mimi-talk-products"><ChatProducts message={reply} onPick={onClose} /></div>
+          <div className="mimi-talk-products"><ChatProducts message={reply} onPick={onClose} onChoose={chooserFor(assistant, assistant.messages.indexOf(reply))} /></div>
         )}
         {finished && reply.quoteDraft && (
           <div className="mimi-talk-quote"><MessageQuote assistant={assistant} index={assistant.messages.indexOf(reply)} /></div>

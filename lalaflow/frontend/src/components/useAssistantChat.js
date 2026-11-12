@@ -44,7 +44,8 @@ function save(state) {
 function toApiMessage(m) {
   if (m.role !== "assistant") return { role: m.role, content: m.content };
   const notes = [m.content];
-  if (m.products?.length) notes.push(`Sản phẩm đã giới thiệu: ${m.products.map((p) => `${p.name} [#${p.id}]`).join(", ")}`);
+  // Numbered like the cards, so "tôi chọn đề xuất 2" can be resolved to the second card.
+  if (m.products?.length) notes.push(`Sản phẩm đã giới thiệu: ${m.products.map((p, i) => `Đề xuất ${i + 1}: ${p.name} [#${p.id}]`).join("; ")}`);
   if (m.quoteDraft) {
     const lines = m.quoteDraft.items.map((item) => `${item.name} [#${item.productId}] × ${item.quantity} ${item.unit}`).join(", ");
     notes.push(`Phiếu báo giá nháp: ${lines}. ${m.quoteSent ? `Khách ĐÃ GỬI phiếu này (mã yêu cầu #${m.quoteSent.id}).` : "Khách CHƯA gửi phiếu này."}`);

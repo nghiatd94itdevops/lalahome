@@ -117,7 +117,7 @@ function Site() {
           <Route path="/san-pham" element={<ProductsPage {...shared} />} />
           <Route path="/san-pham/:id" element={<ProductDetail {...shared} />} />
           <Route path="/yeu-cau-bao-gia" element={<QuoteRequestPage {...shared} />} />
-          <Route path={ASSISTANT_PATH} element={<AssistantPage {...shared} assistant={assistant} />} />
+          <Route path={ASSISTANT_PATH} element={<AssistantPage {...shared} assistant={assistant} onTalk={openConversation} />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
         </ErrorBoundary>

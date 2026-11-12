@@ -7,7 +7,8 @@ so every row is prefixed "[Mẫu]", carries its source in the description, and i
     python scripts/sample_products.py fetch    # download data + one image per product into backups/sample-products/
     python scripts/sample_products.py import   # back up tables, then insert into the running lalaflow-db container
     python scripts/sample_products.py reprice  # give imported rows without a public price an assumed line price
-    python scripts/sample_products.py reviews  # add generated test reviews (is_sample=1) to the imported products
+    python scripts/sample_products.py sizes    # fill roll width/length (parsed, else assumed) and set unit "cuộn"
+    python scripts/sample_products.py reviews # add generated test reviews (is_sample=1) to the imported products
     python scripts/sample_products.py remove   # delete every row and image listed in the manifest
 """
 
@@ -281,6 +282,46 @@ def reprice() -> None:
     print(f"repriced {len(changed)} sample products")
 
 
+ROLL_UNIT = "cuộn"
+# "52″ – 54″ (132 – 137 cm) x 50m": a width range keeps its narrower end, so roll counts round towards more rolls.
+ROLL_SIZE = re.compile(r"(\d+(?:[.,]\d+)?)(?:\s*[–-]\s*\d+(?:[.,]\d+)?)?\s*cm\)?\s*[x×]\s*(\d+(?:[.,]\d+)?)\s*m\b")
+# Common Korean wallpaper roll for sources that publish no size. Placeholder, not the product's real spec.
+ASSUMED_ROLL_SIZES = {"Giấy dán tường": (106, 15.6)}
+
+
+def decimal(text: str) -> float:
+    return float(text.replace(",", "."))
+
+
+def roll_size(row: dict) -> tuple[float, float, str | None]:
+    """Width (cm), length (m) and the note to add to the description when the size is assumed."""
+    match = ROLL_SIZE.search(row["description"])
+    if match:
+        return decimal(match.group(1)), decimal(match.group(2)), None
+    if row["category"] not in ASSUMED_ROLL_SIZES:
+        raise ValueError(f"no roll size in {row['name']!r}; add its category to ASSUMED_ROLL_SIZES")
+    width, length = ASSUMED_ROLL_SIZES[row["category"]]
+    shown_length = f"{length:g}".replace(".", ",")
+    return width, length, f"Kích thước cuộn: {width:g} cm x {shown_length} m (giả định để test)."
+
+
+def sizes() -> None:
+    """Fill roll width/length of imported rows (matched by unique image path) and sell them by the roll."""
+    rows = json.loads(DATA_FILE.read_text(encoding="utf-8"))
+    print(f"backup: {backup_tables()}")
+    statements = ["START TRANSACTION;"]
+    for row in rows:
+        width, length, note = roll_size(row)
+        description = f"{row['description']} {note}" if note else row["description"]
+        statements.append(
+            f"UPDATE products SET roll_width_cm = {width}, roll_length_m = {length}, unit = {sql_text(ROLL_UNIT)}, "
+            f"description = {sql_text(description)} "
+            f"WHERE roll_width_cm IS NULL AND image = {sql_text(UPLOAD_URL_PREFIX + row['image_file'])};")
+        print(f"{'assumed' if note else 'parsed '}  {width:g} cm x {length:g} m  {row['name']}")
+    statements.append("COMMIT;")
+    run_sql("\n".join(statements))
+
+
 REVIEWERS = [
     "Anh Tuấn", "Chị Hoa", "Anh Minh", "Chị Lan", "Anh Phúc", "Chị Thảo", "Anh Đức", "Chị Ngọc",
     "Anh Khoa", "Chị Vy", "Anh Hưng", "Chị Mai", "Anh Nam", "Chị Trang", "Anh Long", "Chị Hạnh",
@@ -347,7 +388,8 @@ def remove() -> None:
     print(f"removed {len(manifest['product_ids'])} sample products and their images")
 
 
-COMMANDS = {"fetch": fetch, "import": import_rows, "reprice": reprice, "reviews": reviews, "remove": remove}
+COMMANDS = {"fetch": fetch, "import": import_rows, "reprice": reprice, "sizes": sizes, "reviews": reviews,
+            "remove": remove}
 
 if __name__ == "__main__":
     if len(sys.argv) != 2 or sys.argv[1] not in COMMANDS:

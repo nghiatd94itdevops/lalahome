@@ -2,9 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { money } from "../api.js";
 import { useSeo } from "../seo.js";
-import { Mimi } from "../components/Mimi.jsx";
-import { primaryImage, ProductImage, RatingSummary, StatusPill } from "../components/Cards.jsx";
-import { ChatComposer, ChatProducts, ChatThread, ReadAloudButton, useFollowLatest } from "../components/ChatAssistant.jsx";
+import { primaryImage, ProductImage, RatingSummary, RollSize, StatusPill } from "../components/Cards.jsx";
+import { AssistantHead, ChatComposer, ChatProducts, ChatThread, chooserFor, isChoice, SuggestionLabel, useFollowLatest } from "../components/ChatAssistant.jsx";
 import { PHONE_QUERY } from "../components/Shell.jsx";
 
 const IN_STOCK = "Có sẵn";
@@ -14,7 +13,7 @@ const SHELF_SORTS = {
   priceDesc: { label: "Giá giảm dần", compare: (a, b) => b.price - a.price },
 };
 
-function ShelfCard({ product }) {
+function ShelfCard({ product, number, onChoose }) {
   const image = primaryImage(product);
   return (
     <li className="shelf-card">
@@ -23,9 +22,11 @@ function ShelfCard({ product }) {
         <StatusPill status={product.status} />
       </Link>
       <div className="shelf-card-body">
+        {number && <SuggestionLabel number={number} onChoose={onChoose} />}
         <span className="kicker">{product.category}</span>
         <h3><Link to={`/san-pham/${product.id}`}>{product.name}</Link></h3>
         <RatingSummary rating={product.rating} />
+        <RollSize product={product} />
         <span className="product-price">{money(product.price)}{product.unit && <small> / {product.unit}</small>}</span>
         <span className="shelf-card-links">
           <Link to={`/san-pham/${product.id}`} className="text-link">Xem chi tiết →</Link>
@@ -38,13 +39,15 @@ function ShelfCard({ product }) {
 
 // The products of one answer as large cards. The chat sends compact cards, so rating and photos come from the
 // catalogue the site already loaded, falling back to the chat's card for a product not in it.
-function ProductShelf({ answer, question, catalogue, onAsk }) {
+function ProductShelf({ answer, question, catalogue, onAsk, onChoose }) {
   const [sort, setSort] = useState("fit");
   const [onlyInStock, setOnlyInStock] = useState(false);
   const shown = useMemo(() => {
     if (!answer) return [];
+    const numbered = isChoice(answer.products);
+    // The suggestion number is fixed before sorting, so "Đề xuất 2" stays the second product of the answer.
     return answer.products
-      .map((p) => ({ ...p, ...catalogue.get(p.id) }))
+      .map((p, i) => ({ ...p, ...catalogue.get(p.id), suggestion: numbered ? i + 1 : null }))
       .filter((p) => !onlyInStock || p.status === IN_STOCK)
       .sort(SHELF_SORTS[sort].compare);
   }, [answer, catalogue, sort, onlyInStock]);
@@ -77,7 +80,7 @@ function ProductShelf({ answer, question, catalogue, onAsk }) {
         </div>
       </div>
       {shown.length
-        ? <ul className="shelf-grid">{shown.map((p) => <ShelfCard key={p.id} product={p} />)}</ul>
+        ? <ul className="shelf-grid">{shown.map((p) => <ShelfCard key={p.id} product={p} number={p.suggestion} onChoose={onChoose} />)}</ul>
         : <p className="empty-note">Không có sản phẩm nào đang có sẵn trong lần tìm này. Bỏ chọn “Chỉ hàng có sẵn” để xem cả hàng đang nhập.</p>}
     </section>
   );
@@ -85,18 +88,18 @@ function ProductShelf({ answer, question, catalogue, onAsk }) {
 
 // Desktop: the answer's products sit on the shelf, so the conversation only shows a button to put them there.
 // Phone: there is no shelf, the compact cards stay under the answer (CSS shows one or the other).
-function AnswerProducts({ message, index, onShelf, onShow }) {
+function AnswerProducts({ message, index, onShelf, onShow, onChoose }) {
   return (
     <>
       <button type="button" className={`shelf-pick ${onShelf ? "is-on" : ""}`} aria-pressed={onShelf} onClick={() => onShow(index)}>
         {onShelf ? `Đang bày ${message.products.length} sản phẩm trên kệ` : `Xem ${message.products.length} sản phẩm trên kệ →`}
       </button>
-      <div className="answer-inline-products"><ChatProducts message={message} /></div>
+      <div className="answer-inline-products"><ChatProducts message={message} onChoose={onChoose} /></div>
     </>
   );
 }
 
-export default function AssistantPage({ content, products, assistant }) {
+export default function AssistantPage({ content, products, assistant, onTalk }) {
   useSeo({ title: `Trợ lý AI Mimi – ${content.company.name}`, description: "Hỏi Mimi loại giấy bạn cần, xem và so sánh sản phẩm phù hợp ngay trên kệ.", path: "/tro-ly", company: content.company });
   const listRef = useRef(null);
   const inputRef = useRef(null);
@@ -122,23 +125,15 @@ export default function AssistantPage({ content, products, assistant }) {
   return (
     <div className="assistant-page">
       <section className="assistant-chat" aria-label="Trò chuyện với trợ lý AI">
-        <header className="chat-head assistant-head">
-          <Mimi state={assistant.mimiState} className="assistant-head-mimi" />
-          <div className="chat-head-text">
-            <strong>Mimi · Trợ lý AI</strong>
-            <span>Tìm giấy theo nhu cầu, giá và tồn kho</span>
-          </div>
-          <ReadAloudButton assistant={assistant} />
-          <button type="button" className="chat-head-action" onClick={assistant.restart} disabled={assistant.busy || !messages.length}>Cuộc trò chuyện mới</button>
-        </header>
+        <AssistantHead assistant={assistant} onTalk={onTalk} />
         <ChatThread
           assistant={assistant}
           listRef={listRef}
-          renderProducts={(m, i) => <AnswerProducts message={m} index={i} onShelf={i === shelfIndex} onShow={setPicked} />}
+          renderProducts={(m, i) => <AnswerProducts message={m} index={i} onShelf={i === shelfIndex} onShow={setPicked} onChoose={chooserFor(assistant, i)} />}
         />
         <ChatComposer assistant={assistant} inputRef={inputRef} />
       </section>
-      <ProductShelf answer={answer} question={question} catalogue={catalogue} onAsk={() => inputRef.current?.focus()} />
+      <ProductShelf answer={answer} question={question} catalogue={catalogue} onAsk={() => inputRef.current?.focus()} onChoose={chooserFor(assistant, shelfIndex)} />
     </div>
   );
 }

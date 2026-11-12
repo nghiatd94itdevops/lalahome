@@ -3,9 +3,9 @@ import { Link } from "react-router-dom";
 import { money } from "../api.js";
 import { PRODUCT_STATUS_TONE } from "../content.js";
 import { Mimi, MimiFace, PokableMimi } from "./Mimi.jsx";
+import { PHONE_QUERY } from "./Shell.jsx";
 import { ProductImage } from "./Cards.jsx";
 import QuoteDraftCard from "./QuoteDraftCard.jsx";
-import { PHONE_QUERY } from "./Shell.jsx";
 
 const MAX_CHARS = 500;
 const SUGGESTIONS = ["Giấy dán tường chống nước, chống cháy", "Giấy in A4 giá tốt", "Giấy làm bao bì dưới 300k"];
@@ -23,11 +23,39 @@ function AssistantSays({ children, typing = false }) {
   );
 }
 
-function ChatProduct({ product, onPick }) {
+// "Đề xuất N" on a card when an answer offers a choice, and on the newest answer a button that says "Tôi chọn đề xuất N"
+// for the visitor, so they can pick by number instead of reading out a long product name.
+export function SuggestionLabel({ number, onChoose }) {
+  return (
+    <span className="suggestion-label">
+      <span className="suggestion-number">Đề xuất {number}</span>
+      {onChoose && <button type="button" className="suggestion-choose" onClick={() => onChoose(number)}>Chọn đề xuất {number}</button>}
+    </span>
+  );
+}
+
+// N is the card's place in the answer, the order the reply names the products and the order the history sent back to
+// the assistant lists them, so "đề xuất 2" means the same product to the visitor and to the assistant.
+export const isChoice = (products) => products.length > 1;
+
+// Only the newest answer can be chosen from: the assistant reads "đề xuất N" against its latest numbered list.
+export function chooserFor(assistant, index) {
+  const message = assistant.messages[index];
+  const isNewest = index >= 0 && index === assistant.messages.length - 1;
+  if (!isNewest || assistant.busy || !isChoice(message.products || [])) return undefined;
+  // A tap answers instead of the mic, which may be listening on the Mimi screen.
+  return (number) => {
+    assistant.voice.cancel();
+    assistant.send(`Tôi chọn đề xuất ${number}`);
+  };
+}
+
+function ChatProduct({ product, number, onPick, onChoose }) {
   return (
     <li className="chat-product">
       <span className="chat-product-photo"><ProductImage path={product.image} alt="" label={product.category} /></span>
       <span className="chat-product-body">
+        {number && <SuggestionLabel number={number} onChoose={onChoose} />}
         <strong>{product.name}</strong>
         <span className="chat-product-price">{money(product.price)}<small>/{product.unit}</small></span>
         <span className={`chat-product-stock tone-${PRODUCT_STATUS_TONE[product.status] || "wait"}`}>{product.status}</span>
@@ -41,11 +69,14 @@ function ChatProduct({ product, onPick }) {
 }
 
 // The products under an answer, as compact rows in the conversation.
-export function ChatProducts({ message, onPick }) {
+export function ChatProducts({ message, onPick, onChoose }) {
+  const numbered = isChoice(message.products);
   return (
     <>
       {message.suggested && <p className="chat-note">Gợi ý cho bạn</p>}
-      <ul className="chat-products">{message.products.map((p) => <ChatProduct key={p.id} product={p} onPick={onPick} />)}</ul>
+      <ul className="chat-products">
+        {message.products.map((p, i) => <ChatProduct key={p.id} product={p} number={numbered ? i + 1 : null} onPick={onPick} onChoose={onChoose} />)}
+      </ul>
     </>
   );
 }
@@ -145,7 +176,7 @@ export function ChatComposer({ assistant, inputRef }) {
           maxLength={MAX_CHARS}
           value={voiceActive ? voice.heard : draft}
           readOnly={voiceActive}
-          placeholder={voiceActive ? "Mình đang nghe, bạn cứ nói…" : "Ví dụ: giấy dán tường chống nước, giá dưới 200k"}
+          placeholder={voiceActive ? "Mình đang nghe, bạn cứ nói…" : "Ví dụ: giấy dán tường dưới 200k"}
           onChange={(event) => assistant.setDraft(event.target.value)}
           onKeyDown={(event) => {
             if (event.key !== "Enter" || event.shiftKey) return;
@@ -162,6 +193,25 @@ export function ChatComposer({ assistant, inputRef }) {
       </form>
       <p className="chat-fineprint">Trợ lý AI có thể nhầm, giá và tồn kho chính xác xem ở trang sản phẩm.</p>
     </>
+  );
+}
+
+// The header of both chat boxes, the floating panel and the assistant page, so they look the same. Only the panel
+// passes `onExpand` and `onClose`: the page is already full size and is left by navigating.
+export function AssistantHead({ assistant, onTalk, onExpand, onClose }) {
+  return (
+    <header className="chat-head">
+      <MimiFace className="chat-head-mimi" />
+      <button type="button" className="chat-head-action" onClick={onTalk} title="Mở màn hình nói chuyện trực tiếp với Mimi">🎤 Nói với Mimi</button>
+      <ReadAloudButton assistant={assistant} />
+      {onExpand && (
+        <button type="button" className="chat-head-icon chat-expand" aria-label="Mở rộng toàn màn hình" title="Mở rộng toàn màn hình" onClick={onExpand}>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h6v6M10 20H4v-6M20 4l-7 7M4 20l7-7" /></svg>
+        </button>
+      )}
+      <button type="button" className="chat-head-action" onClick={assistant.restart} title="Bắt đầu cuộc trò chuyện mới" disabled={assistant.busy || !assistant.messages.length}>Làm mới</button>
+      {onClose && <button type="button" className="chat-close" aria-label="Đóng trợ lý" onClick={onClose}>×</button>}
+    </header>
   );
 }
 
@@ -203,20 +253,8 @@ export default function ChatAssistant({ open, onOpenChange, onExpand, onTalk, as
 
       {open && (
         <section className="chat-panel" id="chat-panel" role="dialog" aria-label="Trợ lý AI">
-          <header className="chat-head">
-            <MimiFace className="chat-head-mimi" />
-            <div className="chat-head-text">
-              <strong>Trợ lý AI</strong>
-            </div>
-            <button type="button" className="chat-head-action chat-talk" onClick={onTalk} title="Mở màn hình nói chuyện trực tiếp với Mimi">🎤 Nói với Mimi</button>
-            <ReadAloudButton assistant={assistant} />
-            <button type="button" className="chat-head-icon chat-expand" aria-label="Mở rộng toàn màn hình" title="Mở rộng toàn màn hình" onClick={onExpand}>
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h6v6M10 20H4v-6M20 4l-7 7M4 20l7-7" /></svg>
-            </button>
-            <button type="button" className="chat-head-action" onClick={assistant.restart} title="Bắt đầu cuộc trò chuyện mới" disabled={assistant.busy || !assistant.messages.length}>Làm mới</button>
-            <button type="button" className="chat-close" aria-label="Đóng trợ lý" onClick={close}>×</button>
-          </header>
-          <ChatThread assistant={assistant} listRef={listRef} renderProducts={(m) => <ChatProducts message={m} onPick={closeOnSmallScreen} />} />
+          <AssistantHead assistant={assistant} onTalk={onTalk} onExpand={onExpand} onClose={close} />
+          <ChatThread assistant={assistant} listRef={listRef} renderProducts={(m, i) => <ChatProducts message={m} onPick={closeOnSmallScreen} onChoose={chooserFor(assistant, i)} />} />
           <ChatComposer assistant={assistant} inputRef={inputRef} />
         </section>
       )}

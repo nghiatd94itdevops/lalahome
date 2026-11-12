@@ -506,6 +506,8 @@ async function initDb() {
     await conn.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS unit VARCHAR(50) NOT NULL DEFAULT 'đơn vị'`);
     await conn.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS cost_price BIGINT NOT NULL DEFAULT 0`);
     await conn.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS min_stock INT NOT NULL DEFAULT 10`);
+    await conn.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS roll_width_cm DECIMAL(6,1) DEFAULT NULL`);
+    await conn.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS roll_length_m DECIMAL(6,2) DEFAULT NULL`);
     await conn.query(`
       CREATE TABLE IF NOT EXISTS suppliers (
         id INT AUTO_INCREMENT PRIMARY KEY,
