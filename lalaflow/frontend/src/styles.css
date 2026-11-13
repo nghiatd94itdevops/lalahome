@@ -355,6 +355,25 @@ p { margin: 0; }
 /* Mimi, the LaLaHome mascot (components/Mimi.jsx). The brand kit draws and animates her and sizes her from the width
    given here (its .mm-root keeps the 400:410 shape), and it handles reduced motion itself. */
 .mimi { display: block; flex: none; pointer-events: none; }
+/* Dance bounce while the 12-pose cat strikes a pose (mimiCharm.js sets data-dance only then): a squash on the beat,
+   a stretch at the top, two beats per second. */
+.mimi[data-dance="on"] { transform-origin: 50% 100%; animation: mimi-dance .5s ease-in-out infinite; }
+@keyframes mimi-dance { 0%, 100% { transform: translateY(0) scale(1.03, .97); } 45% { transform: translateY(-5%) scale(.98, 1.03); } }
+/* The kit swaps tail, paw and leg frames in steps (8 frames over 0.7–1.6 s, about 5–11 a second), which reads as
+   jerky. Here each frame fades in over the one before it instead; delays put frame N in slot N of the cycle. */
+.mimi[data-charm="pose"] :is(.mm-qk-t, .mm-qk-p, .mm-qk-f, .mm-qk-g) { visibility: visible !important; opacity: 0; animation: mimi-xfade var(--qd, 1.6s) linear infinite !important; }
+@keyframes mimi-xfade { 0%, 12.5% { opacity: 1; } 17.5%, 95% { opacity: 0; } 100% { opacity: 1; } }
+.mimi[data-charm="pose"] .mm-qn-0 { animation-delay: calc(var(--qd, 1.6s) * -1) !important; }
+.mimi[data-charm="pose"] .mm-qn-1 { animation-delay: calc(var(--qd, 1.6s) * -.875) !important; }
+.mimi[data-charm="pose"] .mm-qn-2 { animation-delay: calc(var(--qd, 1.6s) * -.75) !important; }
+.mimi[data-charm="pose"] .mm-qn-3 { animation-delay: calc(var(--qd, 1.6s) * -.625) !important; }
+.mimi[data-charm="pose"] .mm-qn-4 { animation-delay: calc(var(--qd, 1.6s) * -.5) !important; }
+.mimi[data-charm="pose"] .mm-qn-5 { animation-delay: calc(var(--qd, 1.6s) * -.375) !important; }
+.mimi[data-charm="pose"] .mm-qn-6 { animation-delay: calc(var(--qd, 1.6s) * -.25) !important; }
+.mimi[data-charm="pose"] .mm-qn-7 { animation-delay: calc(var(--qd, 1.6s) * -.125) !important; }
+/* Uneven open-close rhythm so the talking mouth reads as speech, not a metronome. */
+.mimi-jaw { transform-box: fill-box; transform-origin: 50% 0; animation: mimi-jaw 1.1s linear infinite; }
+@keyframes mimi-jaw { 0%, 100% { transform: scaleY(.3); } 14% { transform: scaleY(1); } 28% { transform: scaleY(.45); } 42% { transform: scaleY(.9); } 56% { transform: scaleY(.25); } 72% { transform: scaleY(1); } 86% { transform: scaleY(.55); } }
 .mimi-face { display: block; flex: none; }
 .mimi-face svg { display: block; width: 100%; height: auto; }
 .chat-launcher .chat-launcher-mimi { width: 40px; margin: -4px 0; }

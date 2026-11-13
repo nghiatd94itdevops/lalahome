@@ -1,13 +1,16 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-// The brand kit in /LaLaHome is the single source of the mascot: these scripts define window.MIMI_ASSETS and
-// window.MimiBot (states, seasons, festivals). Updating the kit there updates the site on the next build.
-// Trial of the newer kit in /LaLaHome/LaLaHome, which adds the chubby cat; the letter-L kit one folder up is kept
-// for rollback (this kit also still draws "L", so setting VARIANT back is enough).
+// The brand kit in /LaLaHome/LaLaHome is the single source of the mascot: these scripts define window.MIMI_ASSETS
+// and window.MimiBot (states, seasons, festivals). Updating the kit there updates the site on the next build. The
+// site shows the kit's 12-pose cat ("pose").
 import "../../../../LaLaHome/LaLaHome/mimi-svg.js";
 import "../../../../LaLaHome/LaLaHome/mimi-bot.js";
+import { charmFor, startCharm, startIdleGestures, startTalkingMouth } from "./mimiCharm.js";
+import { rigPoseCat } from "./mimiRig.js";
 
 const PERSONA = "friendly";
-const VARIANT = "chubby";
+const VARIANT = "pose";
+// The kit's standing pose, the one "idle" uses; still heads in the chat are drawn from it.
+const STILL_POSE = 1;
 const SHOP_TIME_ZONE = "Asia/Ho_Chi_Minh";
 const DAY_MS = 24 * 60 * 60 * 1000;
 // Lunar holidays as solar dates (the kit has no lunar calendar). Extend the table after 2030.
@@ -55,30 +58,24 @@ export function useMimiNow() {
   }, []);
   return now;
 }
-// Crop of the 400×410 drawing around the head and ears, placed from the kit's head centre for the variant (for "L"
-// that is 178,148, giving 62 14 232 236).
-const HEAD_CROP = { left: 116, top: 134, width: 232, height: 236 };
+// Crop of the 400×410 drawing around the head and ears, in head radii from the kit's head centre.
+const HEAD_CROP = { left: 1.16, top: 1.34, width: 2.32, height: 2.36 };
 
-function headViewBox(variant) {
-  const { cx, cy } = window.MIMI_ASSETS.VARIANT_GEO[variant].head;
-  return `${cx - HEAD_CROP.left} ${cy - HEAD_CROP.top} ${HEAD_CROP.width} ${HEAD_CROP.height}`;
+function headViewBox() {
+  const { cx, cy, r } = window.MIMI_ASSETS.POSE_GEO[STILL_POSE].head;
+  const box = [cx - HEAD_CROP.left * r, cy - HEAD_CROP.top * r, HEAD_CROP.width * r, HEAD_CROP.height * r];
+  return box.map((n) => n.toFixed(1)).join(" ");
 }
 
-// The kit's still drawing for a variant, with a resting face. The chubby cat's head art must sit under its ears,
-// which the animated bot fixes after building; done here the same way.
-function stillMascotMarkup(prefix, variant) {
-  const { buildSVG, buildFace, buildChubbyFace } = window.MIMI_ASSETS;
-  const isChubby = variant === "chubby";
-  const face = (isChubby ? buildChubbyFace : buildFace)(prefix, { eyes: "happy", mouth: "w" });
-  const markup = buildSVG(prefix, variant)
-    .replace(/viewBox="[^"]*"/, `viewBox="${headViewBox(variant)}"`)
-    .replace('<g class="mm-face"></g>', `<g class="mm-face">${face}</g>`);
-  if (!isChubby) return markup;
+// The 12-pose cat draws every pose and animation frame at once and lets the bot's CSS show one. A still head keeps
+// only the standing pose's first frame, cropped to the head, and drops the patches the bot uses to cover the drawn
+// eyes and mouth when it paints vector ones, so the drawing's own face shows.
+function stillMascotMarkup(prefix) {
   const template = document.createElement("template");
-  template.innerHTML = markup;
-  const headArt = template.content.querySelector(".mm-art-head")?.parentNode;
-  const leftEar = template.content.querySelector(".mm-earw-l");
-  if (headArt && leftEar) leftEar.parentNode.insertBefore(headArt, leftEar);
+  template.innerHTML = window.MIMI_ASSETS.buildSVG(prefix, VARIANT).replace(/viewBox="[^"]*"/, `viewBox="${headViewBox()}"`);
+  const drop = `.mm-pose:not(.mm-pose-${STILL_POSE}), .mm-qf:not(.mm-qn-0), .mm-eyepatch, .mm-mouthp`;
+  template.content.querySelectorAll(drop).forEach((node) => node.remove());
+  template.content.querySelectorAll(".mm-qf").forEach((frame) => frame.setAttribute("style", "visibility:visible"));
   return template.innerHTML;
 }
 
@@ -87,24 +84,41 @@ function stillMascotMarkup(prefix, variant) {
 export function Mimi({ state = "idle", season = null, festival = null, celebrate = 0, className = "" }) {
   const host = useRef(null);
   const bot = useRef(null);
+  const latestState = useRef(state);
+  const charmControl = useRef(null);
+  const [charm] = useState(() => charmFor(VARIANT));
 
   useEffect(() => {
     // The speech bubble stays off: the owner asked for no message bubble above the mascot.
     const instance = new window.MimiBot(host.current, { persona: PERSONA, variant: VARIANT, state, season, festival, bubble: false });
     bot.current = instance;
+    const control = charm ? startCharm(instance, charm, host.current, () => latestState.current) : null;
+    charmControl.current = control;
+    const stopRig = charm?.softBody ? rigPoseCat(instance) : null;
     return () => {
+      stopRig?.();
+      control?.stop();
+      charmControl.current = null;
       instance.destroy();
       bot.current = null;
     };
     // Created once; the effects below forward later changes to the running instance.
   }, []);
 
-  useEffect(() => { bot.current?.setState(state); }, [state]);
+  useEffect(() => {
+    latestState.current = state;
+    // A pose the charm layer is playing must not land on top of the state the site just asked for.
+    if (charmControl.current) charmControl.current.interrupt();
+    else bot.current?.stop();
+    bot.current?.setState(state);
+  }, [state]);
+  useEffect(() => (charm && state === "idle" ? startIdleGestures(charmControl.current, charm) : undefined), [charm, state]);
+  useEffect(() => (charm?.talkingMouth && state === "talking" ? startTalkingMouth(bot.current) : undefined), [charm, state]);
   useEffect(() => { bot.current?.setSeason(season); }, [season]);
   useEffect(() => { bot.current?.setFestival(festival); }, [festival]);
   useEffect(() => { if (celebrate) bot.current?.celebrate(); }, [celebrate]);
 
-  return <div ref={host} className={`mimi ${className}`} data-state={state} data-season={season || ""} data-festival={festival || ""} aria-hidden="true" />;
+  return <div ref={host} className={`mimi ${className}`} data-charm={charm ? VARIANT : ""} data-state={state} data-season={season || ""} data-festival={festival || ""} aria-hidden="true" />;
 }
 
 const POKE_REACTION_MS = 2500;
@@ -120,6 +134,10 @@ const POKE_REACTIONS = [
   { state: "wink", line: "Chọc Mimi là phải ghé xem giấy đó nha 😜" },
   { state: "happy", line: "Meo~ Mimi thích được vuốt ve lắm!" },
   { state: "love", line: "Bạn dễ thương ghê, Mimi ngại quá à 🙈" },
+  { state: "wink", line: "Rừ rừ… Mimi đang kêu rừ rừ đó, nghe hông? 😻" },
+  { state: "greet", line: "Ôm Mimi một cái nha, Mimi mềm lắm nè 🤗" },
+  { state: "surprised", line: "Á á, má Mimi đỏ hết rồi nè!" },
+  { state: "happy", line: "Chọc nữa là Mimi lăn ra cười đó nha 😹" },
 ];
 const WAKE_REACTIONS = [
   { state: "surprised", line: "Á! Mimi đâu có ngủ… chỉ nhắm mắt suy nghĩ thôi 😅" },
@@ -185,7 +203,7 @@ export function MimiNote({ state, children, className = "" }) {
 // so a long conversation does not run dozens of animated mascots.
 export function MimiFace({ className = "" }) {
   const prefix = `mf${useId().replace(/[^a-zA-Z0-9]/g, "")}_`;
-  const markup = useMemo(() => stillMascotMarkup(prefix, VARIANT), [prefix]);
+  const markup = useMemo(() => stillMascotMarkup(prefix), [prefix]);
   const colors = useMemo(() => {
     const vars = window.MIMI_ASSETS.deriveColors({});
     // The collar takes the state colour (--mm-s*); a resting face uses the brand accent, as the "idle" state does.

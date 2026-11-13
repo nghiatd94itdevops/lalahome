@@ -3,7 +3,7 @@
   // g:assets
   var A = window.MIMI_ASSETS;
   if (!A) throw new Error("C\u1EA7n n\u1EA1p mimi-svg.js tr\u01B0\u1EDBc mimi-bot.js");
-  var { BADGES, CHUBBY_ART_REF, CHUBBY_FACE, CHUBBY_SUIT, DECOR, EYEWEAR, FX, GEO, HAND, HATS, ITEMS, MIMI_DEFAULT_COLORS, SCARF, STATE_COLORS, SUIT, VARIANT_GEO, banner, buildChubbyFace, buildChubbySVG, buildFace, buildSVG, chubbyVectorEyes, darken, deriveColors, hexToRgb, lighten, mix } = A;
+  var { BADGES, CHUBBY_ART_REF, CHUBBY_FACE, CHUBBY_HATS, CHUBBY_SUIT, CHUBBY_WOOL, DECOR, EAR_FRAMES, EYEWEAR, FX, GEO, HAND, HATS, ITEMS, LEG_FRAMES, MIMI_DEFAULT_COLORS, POSE_GEO, POSE_REF, SCARF, STAND_ART_REF, STAND_SUIT, STATE_COLORS, SUIT, VARIANT_GEO, banner, buildChubbyFace, buildChubbySVG, buildFace, buildPoseSVG, buildSVG, buildStandSVG, chubbyVectorEyes, darken, deriveColors, hexToRgb, lighten, mix } = A;
 
   // ../LaLaHome/src/mimi-engine.js
   var G = { talk: "H\u1ED9i tho\u1EA1i", emo: "C\u1EA3m x\xFAc", sys: "H\u1EC7 th\u1ED1ng", time: "Th\u1EDDi gian trong ng\xE0y" };
@@ -43,7 +43,73 @@
     night: { label: "22:00 Xem phim", group: G.time, time: "22:00", color: "night", face: { eyes: "big", mouth: "open" }, anim: "breathe", item: "popcorn", eyewear: "glasses3d", tl: "moon", b: "Phim hay qu\xE1!", wish: "GIAO TH\u1EEAA AN L\xC0NH" }
   };
   var PERSONAS = { friendly: { label: "Th\xE2n thi\u1EC7n" }, pro: { label: "Chuy\xEAn nghi\u1EC7p" }, premier: { label: "Premier" }, playful: { label: "Tinh ngh\u1ECBch" } };
-  var VARIANTS = { chubby: { label: "M\xE8o \xFA" }, L: { label: "Ch\u1EEF L" }, LH: { label: "Ch\u1EEF L + nh\xE0 H" } };
+  var VARIANTS = { pose: { label: "M\xE8o \xFA 12 t\u01B0 th\u1EBF" }, stand: { label: "M\xE8o \u0111\u1EE9ng" }, chubby: { label: "M\xE8o ng\u1ED3i" }, L: { label: "Ch\u1EEF L" }, LH: { label: "Ch\u1EEF L + nh\xE0 H" } };
+  var PHOTO = (v) => v === "chubby" || v === "stand" || v === "pose";
+  var POSE_OF = {
+    idle: 1,
+    listening: 1,
+    talking: 1,
+    warning: 1,
+    greet: 2,
+    thinking: 3,
+    confused: 3,
+    searching: 3,
+    processing: 3,
+    wink: 4,
+    dawn: 4,
+    happy: 5,
+    success: 5,
+    surprised: 6,
+    morning: 7,
+    work: 7,
+    noon: 7,
+    afternoon: 7,
+    teatime: 7,
+    sunset: 7,
+    evening: 7,
+    night: 7,
+    info: 8,
+    request: 8,
+    love: 9,
+    meditate: 9,
+    sleep: 10,
+    midnight: 10,
+    dream: 10,
+    sad: 11,
+    error: 11,
+    trash: 11,
+    party: 12
+  };
+  var POSE_BASE = { zones: { tl: [40, 44], l: [30, 250], bl: [34, 352], r: [366, 300] }, badge: [340, 112], inhand: true };
+  var VECTOR_EYES = { sad: 1, x: 1, big: 1, heart: 1, star: 1, spiral: 1, dong: 1, pixel: 1 };
+  var VECTOR_MOUTH = { o: 1, sad: 1, shout: 1, wave: 1 };
+  var GESTURE = {
+    greet: "wave",
+    happy: "cheer",
+    success: "cheer",
+    party: "cheer",
+    love: "hug",
+    wink: "hug",
+    thinking: "tap",
+    processing: "tap",
+    listening: "tap",
+    talking: "talk",
+    searching: "tap",
+    sad: "droop",
+    sleep: "droop",
+    error: "droop",
+    trash: "droop",
+    midnight: "droop",
+    dream: "droop",
+    meditate: "hug",
+    surprised: "up",
+    warning: "up",
+    confused: "tap",
+    dawn: "cheer",
+    noon: "cheer",
+    sunset: "hug"
+  };
+  var STEPS = { happy: "step", success: "step", party: "step", dawn: "step", greet: "step", surprised: "hop", warning: "hop" };
   var COSPLAYS = { bebe: { label: "C\u1EEBu Bebe" }, glass: { label: "Th\xE2n k\xEDnh" } };
   var SEASONS = {
     spring: { label: "Xu\xE2n", hat: "flowercrown", item: "pinwheel", particle: "petal", top: ["bee", "butterfly"], bottom: ["daisies", "butterfly"] },
@@ -122,6 +188,7 @@
     processing: "back"
   };
   var QUIRKS = ["slow", "cat3", "curious", "lick"];
+  var EAR_FRAME = { down: "d2", back: "d2", up: "up", side: "fr" };
   var PREMIER_CHUBBY = {
     "--mm-f0": "#FF66C4",
     "--mm-f1": "#FF0099",
@@ -301,6 +368,26 @@
 @keyframes mm-thumb{from{transform:rotate(30deg) scale(.6)}to{transform:rotate(0) scale(1)}}
 .mm-v-chubby.mm-h-wave .mm-handg,.mm-v-chubby .mm-h-wave .mm-handg{transform-origin:240px 282px}
 .mm-v-chubby .mm-h-hold .mm-handg{transform-origin:240px 282px}
+/* ---- M\xE8o \xFA v7: tai + n\u01A1 d\xEDnh li\u1EC1n \u0111\u1EA7u (\u1EA3nh g\u1ED1c) \u2013 kh\xF4ng chuy\u1EC3n \u0111\u1ED9ng ri\xEAng; c\u1EA3m x\xFAc b\u1EB1ng t\u01B0 th\u1EBF \u0111\u1EA7u ---- */
+.mm-v-chubby .mm-earw,.mm-v-chubby .mm-earp,.mm-v-chubby .mm-ear,.mm-v-chubby .mm-cbow{animation:none !important;transform:none !important;transition:none !important}
+.mm-v-chubby .mm-rhead{transform-box:view-box;transform-origin:169px 214px}
+.mm-v-chubby.mm-ears-down .mm-rhead{animation:mm-hp-down 3.6s ease-in-out infinite}
+@keyframes mm-hp-down{0%,100%{transform:translateY(2.5px) rotate(-2.4deg)}50%{transform:translateY(3.5px) rotate(-2.8deg)}}
+.mm-v-chubby.mm-ears-back .mm-rhead{animation:mm-hp-back 2.6s ease-in-out infinite}
+@keyframes mm-hp-back{0%,100%{transform:translateY(2px) rotate(2.2deg)}50%{transform:translateY(2.8px) rotate(1.6deg)}}
+.mm-v-chubby.mm-ears-up .mm-rhead{animation:mm-hp-up 2.4s ease-in-out infinite}
+@keyframes mm-hp-up{0%,100%{transform:translateY(-3px)}50%{transform:translateY(-4.5px)}}
+.mm-v-chubby.mm-ears-side .mm-rhead{animation:mm-hp-side 3s ease-in-out infinite}
+@keyframes mm-hp-side{0%,100%{transform:rotate(-3deg)}50%{transform:rotate(-2deg)}}
+/* khung tai (u\u1ED1n s\u1EB5n t\u1EEB \u1EA3nh g\u1ED1c): ch\u1EC9 hi\u1EC7n 1 khung */
+.mm-v-chubby .mm-tf{display:none}
+.mm-v-chubby.mm-ef-f0 .mm-tf-f0,.mm-v-chubby.mm-ef-d1 .mm-tf-d1,.mm-v-chubby.mm-ef-d2 .mm-tf-d2,.mm-v-chubby.mm-ef-up .mm-tf-up,.mm-v-chubby.mm-ef-fl .mm-tf-fl,.mm-v-chubby.mm-ef-fr .mm-tf-fr{display:inline}
+/* l\u1EAFc \u0111\u1EA7u nh\u1EB9 m\u1ED9t nh\u1ECBp */
+.mm-v-chubby .mm-head{transform-box:view-box;transform-origin:169px 214px}
+.mm-v-chubby.mm-flick-l .mm-head{animation:mm-hshake .55s ease-out 1}
+.mm-v-chubby.mm-flick-r .mm-head{animation:mm-hshake2 .55s ease-out 1}
+@keyframes mm-hshake{0%,100%{transform:rotate(0)}30%{transform:rotate(-2.2deg)}65%{transform:rotate(1.2deg)}}
+@keyframes mm-hshake2{0%,100%{transform:rotate(0)}30%{transform:rotate(2.2deg)}65%{transform:rotate(-1.2deg)}}
 .mm-reduce .mm-rtail,.mm-reduce .mm-rbreath,.mm-reduce .mm-rhead,.mm-reduce .mm-ground,.mm-reduce .mm-headm,.mm-reduce .mm-facefeat,.mm-reduce .mm-headturn,.mm-reduce .mm-earw,.mm-reduce .mm-fidget-l,.mm-reduce .mm-fidget-r,.mm-reduce .mm-cbow,.mm-reduce .mm-nbubble,.mm-reduce .mm-ctail,.mm-reduce .mm-ctail2,.mm-reduce .mm-tuft,.mm-reduce .mm-cheekfur-l,.mm-reduce .mm-cheekfur-r,.mm-reduce .mm-whisk-l,.mm-reduce .mm-whisk-r,.mm-reduce .mm-cords{animation:none}
 .mm-h-wave .mm-handg{transform-box:view-box;transform-origin:232px 300px;animation:mm-wave .5s ease-in-out infinite alternate}
 @keyframes mm-wave{from{transform:rotate(-14deg)}to{transform:rotate(16deg)}}
@@ -396,6 +483,120 @@
 .mm-time+.mm-bt{font-weight:500;font-size:.9em;margin-top:.15em}
 .mm-hrt{display:inline-block;color:#FF5C7A;animation:mm-pulse .7s infinite;margin-left:.2em}
 
+/* ---- M\xC8O \u0110\u1EE8NG: \u0111i\u1EC3m xoay theo viewBox, khung ch\xE2n, tay, \u0111u\xF4i ---- */
+.mm-v-stand .mm-headm,.mm-v-stand .mm-rhead,.mm-v-stand .mm-head{transform-origin:180px 151px}
+.mm-v-stand .mm-rtail{transform-origin:257.6px 271.4px;animation:mm-stail 3s cubic-bezier(.45,0,.55,1) infinite}
+@keyframes mm-stail{0%,100%{transform:rotate(-3.5deg)}50%{transform:rotate(4deg)}}
+.mm-v-stand.mm-a-bounce .mm-rtail,.mm-v-stand.mm-a-jump .mm-rtail{animation-duration:.9s}
+.mm-v-stand.mm-a-droop .mm-rtail{animation-duration:5.5s}
+.mm-v-stand.mm-g-up .mm-rtail{animation:mm-stailup .5s ease-out 1 both}
+@keyframes mm-stailup{0%{transform:rotate(0)}40%{transform:rotate(-5deg)}100%{transform:rotate(-3deg)}}
+.mm-v-stand .mm-rbreath{transform-origin:182px 280px}
+.mm-v-stand .mm-lf{display:none}
+.mm-v-stand.mm-lf-on-f0 .mm-lf-f0,.mm-v-stand.mm-lf-on-L .mm-lf-L,.mm-v-stand.mm-lf-on-R .mm-lf-R,.mm-v-stand.mm-lf-on-B .mm-lf-B{display:inline}
+.mm-v-stand .mm-armw{transform-box:view-box}
+.mm-v-stand .mm-armw-l,.mm-v-stand .mm-arm-l{transform-box:view-box;transform-origin:139.3px 209px}
+.mm-v-stand .mm-armw-r,.mm-v-stand .mm-arm-r{transform-box:view-box;transform-origin:208.9px 209px}
+/* l\xFAc r\u1EA3nh: tay \u0111ung \u0111\u01B0a nh\u1EB9 l\u1EC7ch nh\u1ECBp */
+.mm-v-stand .mm-arm-l{animation:mm-ail 3.2s ease-in-out infinite}
+.mm-v-stand .mm-arm-r{animation:mm-air 3.2s ease-in-out -1.6s infinite}
+@keyframes mm-ail{0%,100%{transform:rotate(0)}50%{transform:rotate(-3deg)}}
+@keyframes mm-air{0%,100%{transform:rotate(0)}50%{transform:rotate(3deg)}}
+/* v\u1EABy tay ch\xE0o: tay tr\xE1i v\u1EABy qua l\u1EA1i tr\u01B0\u1EDBc ng\u1EF1c */
+.mm-v-stand.mm-g-wave .mm-arm-l{animation:mm-wave-l .42s ease-in-out infinite alternate}
+@keyframes mm-wave-l{from{transform:rotate(-2deg)}to{transform:rotate(-16deg)}}
+/* khua hai tay \u0103n m\u1EEBng */
+.mm-v-stand.mm-g-cheer .mm-arm-l{animation:mm-ch-l .4s ease-in-out infinite alternate}
+.mm-v-stand.mm-g-cheer .mm-arm-r{animation:mm-ch-r .4s ease-in-out -.2s infinite alternate}
+@keyframes mm-ch-l{from{transform:rotate(4deg)}to{transform:rotate(-14deg)}}
+@keyframes mm-ch-r{from{transform:rotate(-4deg)}to{transform:rotate(14deg)}}
+/* g\xF5 tay suy ngh\u0129 */
+.mm-v-stand.mm-g-tap .mm-arm-r{animation:mm-tap .32s ease-in-out infinite alternate}
+@keyframes mm-tap{from{transform:rotate(0)}to{transform:rotate(7deg)}}
+.mm-v-stand.mm-g-talk .mm-arm-l{animation:mm-talkl 1.1s ease-in-out infinite}
+.mm-v-stand.mm-g-talk .mm-arm-r{animation:mm-talkr 1.1s ease-in-out -.55s infinite}
+@keyframes mm-talkl{0%,100%{transform:rotate(0)}50%{transform:rotate(-9deg)}}
+@keyframes mm-talkr{0%,100%{transform:rotate(0)}50%{transform:rotate(9deg)}}
+/* \xF4m tim / ch\u1EAFp tay */
+.mm-v-stand.mm-g-hug .mm-arm-l{animation:mm-hug-l 1.4s ease-in-out infinite}
+.mm-v-stand.mm-g-hug .mm-arm-r{animation:mm-hug-r 1.4s ease-in-out infinite}
+@keyframes mm-hug-l{0%,100%{transform:rotate(-12deg)}50%{transform:rotate(-15deg)}}
+@keyframes mm-hug-r{0%,100%{transform:rotate(12deg)}50%{transform:rotate(15deg)}}
+/* bu\u1ED3n / ng\u1EE7: tay r\u0169 kh\xE9p */
+.mm-v-stand.mm-g-droop .mm-arm-l{animation:none;transform:rotate(-6deg)}
+.mm-v-stand.mm-g-droop .mm-arm-r{animation:none;transform:rotate(6deg)}
+/* ng\u1EA1c nhi\xEAn: hai tay b\u1EADt ra m\u1ED9t nh\u1ECBp */
+.mm-v-stand.mm-g-up .mm-arm-l{animation:mm-up-l .45s cubic-bezier(.3,1.6,.5,1) 1 both}
+.mm-v-stand.mm-g-up .mm-arm-r{animation:mm-up-r .45s cubic-bezier(.3,1.6,.5,1) 1 both}
+@keyframes mm-up-l{from{transform:rotate(0)}to{transform:rotate(5deg)}}
+@keyframes mm-up-r{from{transform:rotate(0)}to{transform:rotate(-5deg)}}
+/* c\u1EA7m \u0111\u1ED3 b\u1EB1ng tay ph\u1EA3i: tay kh\xE9p v\xE0o gi\u1EEFa, gi\u1EEF y\xEAn */
+.mm-v-stand.mm-g-hold .mm-arm-r{animation:mm-hold-r 2.4s ease-in-out infinite}
+@keyframes mm-hold-r{0%,100%{transform:rotate(8deg)}50%{transform:rotate(11deg)}}
+.mm-v-stand .mm-hand{animation:none !important}
+.mm-reduce.mm-v-stand .mm-arm-l,.mm-reduce.mm-v-stand .mm-arm-r,.mm-reduce.mm-v-stand .mm-rtail{animation:none !important}
+/* ---- M\xC8O \xDA 12 T\u01AF TH\u1EBE ---- */
+.mm-v-pose .mm-pose{display:none}
+.mm-pz-1 .mm-pose-1,.mm-pz-2 .mm-pose-2,.mm-pz-3 .mm-pose-3,.mm-pz-4 .mm-pose-4,.mm-pz-5 .mm-pose-5,.mm-pz-6 .mm-pose-6,.mm-pz-7 .mm-pose-7,.mm-pz-8 .mm-pose-8,.mm-pz-9 .mm-pose-9,.mm-pz-10 .mm-pose-10,.mm-pz-11 .mm-pose-11,.mm-pz-12 .mm-pose-12{display:inline}
+.mm-v-pose .mm-posewrap{transform-box:view-box;transform-origin:188px 384px}
+.mm-v-pose .mm-rbreath{transform-origin:188px 384px}
+.mm-v-pose .mm-mouthp{display:none}
+.mm-v-pose.mm-vmouth .mm-mouthp{display:inline}
+.mm-noblink .mm-blinkov,.mm-noblink .mm-eyepatch{display:none !important}
+/* khung c\u1EED \u0111\u1ED9ng 8 b\u01B0\u1EDBc (\u0111u\xF4i t, tay v\u1EABy p, ch\xE2n f/g) ch\u1EA1y theo nh\u1ECBp s\xF3ng; khung 0 = \u1EA3nh g\u1ED1c */
+.mm-qf{visibility:hidden}
+.mm-qn-0{visibility:visible}
+${Array.from({ length: 8 }, (_, i) => `.mm-qk-t.mm-qn-${i},.mm-qk-p.mm-qn-${i},.mm-qk-f.mm-qn-${i},.mm-qk-g.mm-qn-${i}{animation:mm-q8-${i} var(--qd,1.6s) step-end infinite}
+@keyframes mm-q8-${i}{${i ? `0%{visibility:hidden}${i * 12.5}%{visibility:visible}` : "0%{visibility:visible}"}${(i + 1) * 12.5}%,100%{visibility:hidden}}`).join("\n")}
+.mm-qk-t{--qd:1.6s}.mm-qk-p{--qd:.72s}.mm-qk-f{--qd:1s}.mm-qk-g{--qd:1s;animation-delay:-.5s !important}
+.mm-a-bounce .mm-qk-t,.mm-a-jump .mm-qk-t{--qd:.8s}
+.mm-a-droop .mm-qk-t{--qd:3.2s}
+.mm-q-wag .mm-qk-t{--qd:.48s}
+/* gi\u1EADt tai 3 khung: e1 \u2192 e2 \u2192 e1 \u2192 e0 */
+.mm-ef-fl .mm-qk-e,.mm-ef-fr .mm-qk-e{animation:var(--qe) .5s step-end 1 both}
+.mm-qk-e.mm-qn-0{--qe:mm-qe0}.mm-qk-e.mm-qn-1{--qe:mm-qe1}.mm-qk-e.mm-qn-2{--qe:mm-qe2}
+.mm-ef-fl .mm-qk-e.mm-qn-0,.mm-ef-fr .mm-qk-e.mm-qn-0{animation-name:mm-qe0}
+.mm-ef-fl .mm-qk-e.mm-qn-1,.mm-ef-fr .mm-qk-e.mm-qn-1{animation-name:mm-qe1}
+.mm-ef-fl .mm-qk-e.mm-qn-2,.mm-ef-fr .mm-qk-e.mm-qn-2{animation-name:mm-qe2}
+@keyframes mm-qe0{0%{visibility:hidden}80%,100%{visibility:visible}}
+@keyframes mm-qe1{0%{visibility:visible}20%{visibility:hidden}60%{visibility:visible}80%,100%{visibility:hidden}}
+@keyframes mm-qe2{0%{visibility:hidden}20%{visibility:visible}60%,100%{visibility:hidden}}
+/* th\xE2n: th\u1EDF co gi\xE3n, l\u1EAFc l\u01B0 quanh b\xE0n ch\xE2n, ki\u1EC3u ri\xEAng t\u1EEBng t\u01B0 th\u1EBF */
+.mm-v-pose .mm-bob{transform-origin:188px 384px}
+.mm-v-pose .mm-rbreath{animation:mm-pbreath 3s ease-in-out infinite}
+@keyframes mm-pbreath{0%,100%{transform:scale(1,1)}50%{transform:scale(1.016,1.026)}}
+.mm-v-pose .mm-posewrap{animation:mm-psway 4.4s ease-in-out infinite}
+@keyframes mm-psway{0%,100%{transform:rotate(-1.1deg)}50%{transform:rotate(1.1deg)}}
+.mm-v-pose.mm-pz-5 .mm-posewrap{animation:mm-pjump .86s cubic-bezier(.45,0,.55,1) infinite}
+@keyframes mm-pjump{0%,100%{transform:translateY(0) scale(1.03,.96)}18%{transform:translateY(-4px) scale(.98,1.03)}50%{transform:translateY(-16px) scale(1,1)}82%{transform:translateY(-3px) scale(.99,1.02)}}
+.mm-v-pose.mm-pz-6 .mm-posewrap{animation:mm-plunge 1s ease-in-out infinite}
+@keyframes mm-plunge{0%,100%{transform:translate(-4px,2px) rotate(-1.5deg)}50%{transform:translate(5px,-6px) rotate(1.5deg)}}
+.mm-v-pose.mm-pz-4 .mm-posewrap{animation:mm-pplay 1.3s ease-in-out infinite}
+@keyframes mm-pplay{0%,100%{transform:translateX(0) scale(1,1)}50%{transform:translateX(-3px) scale(1.02,.97)}}
+.mm-v-pose.mm-pz-10 .mm-rbreath,.mm-v-pose.mm-pz-11 .mm-rbreath{animation:mm-psleep 3.6s ease-in-out infinite}
+@keyframes mm-psleep{0%,100%{transform:scale(1,1)}50%{transform:scale(1.025,1.04)}}
+.mm-v-pose.mm-pz-10 .mm-posewrap,.mm-v-pose.mm-pz-11 .mm-posewrap{animation:none}
+.mm-v-pose.mm-pz-12 .mm-posewrap{animation:mm-roll 1.5s ease-in-out infinite;transform-origin:188px 330px}
+@keyframes mm-roll{0%,100%{transform:rotate(-4deg)}50%{transform:rotate(4deg)}}
+/* c\u1EED ch\u1EC9 l\xFAc r\u1EA3nh */
+.mm-v-pose.mm-q-tilt .mm-posewrap{animation:mm-ptilt 1.8s ease-in-out 1}
+@keyframes mm-ptilt{0%,100%{transform:rotate(0)}30%,70%{transform:rotate(-4deg)}}
+.mm-v-pose.mm-q-hop .mm-posewrap{animation:mm-phop .55s cubic-bezier(.3,1.4,.5,1) 1}
+@keyframes mm-phop{0%{transform:scale(1.04,.94)}40%{transform:translateY(-10px) scale(.98,1.04)}100%{transform:translateY(0) scale(1,1)}}
+/* \u0111\u1ED5i t\u01B0 th\u1EBF 3 nh\u1ECBp: co xu\u1ED1ng \u2192 \u0111\u1ED5i h\xECnh \u2192 b\u1EADt l\xEAn */
+.mm-v-pose.mm-pzout .mm-posewrap{animation:mm-pzout .13s ease-in 1 forwards}
+@keyframes mm-pzout{0%{transform:scale(1,1)}100%{transform:scale(1.06,.84)}}
+.mm-v-pose.mm-pzout :is(.mm-head,.mm-hand,.mm-scarf,.mm-outfit){visibility:hidden}
+.mm-v-pose.mm-pzin .mm-posewrap{animation:mm-pzin .42s cubic-bezier(.3,1.55,.5,1) 1}
+@keyframes mm-pzin{0%{transform:scale(.9,.8) translateY(0)}45%{transform:scale(.97,1.08) translateY(-6px)}75%{transform:scale(1.02,.98)}100%{transform:scale(1,1)}}
+/* m\u1EB7t vector tr\xEAn t\u01B0 th\u1EBF: n\xE9t n\xE2u \u1EA5m, m\u1EC1m nh\u01B0 n\xE9t v\u1EBD */
+.mm-v-pose .mm-face [style*="#3A2214"]{stroke:#7A3A1C !important}
+.mm-v-pose .mm-face [style*="#1E0E05"]{fill:#4A2410 !important}
+/* \u0111\u1ED3 v\u1EADt, trang tr\xED: vi\u1EC1n n\xE2u m\u1EA3nh cho h\u1EE3p n\xE9t v\u1EBD */
+.mm-v-pose :is(.mm-hand,.mm-back,.mm-front,.mm-eyewear) :is(path,rect,circle,ellipse,polygon):not([style*="stroke"]){stroke:#7A3A1C;stroke-width:1.3px;paint-order:stroke;stroke-linejoin:round}
+.mm-reduce .mm-qf{animation:none !important}
+.mm-reduce .mm-qn-0{visibility:visible !important}.mm-reduce .mm-qf:not(.mm-qn-0){visibility:hidden !important}
+.mm-reduce.mm-v-pose .mm-posewrap,.mm-reduce.mm-v-pose .mm-rbreath{animation:none !important}
 /* gi\u1EA3m chuy\u1EC3n \u0111\u1ED9ng */
 .mm-reduce .mm-bob,.mm-reduce .mm-handg{animation-duration:6s !important;animation-name:mm-breathe !important}
 .mm-reduce .mm-w{animation:none}
@@ -481,7 +682,7 @@
       this.el = el;
       this.u = "mm" + ++SEQ + "_";
       this.o = {
-        variant: "chubby",
+        variant: "pose",
         colors: {},
         state: "idle",
         persona: "friendly",
@@ -606,6 +807,10 @@
       this.stop();
       this._clearFx();
       this._lifeStop();
+      this._earStop();
+      this._legsStop();
+      clearTimeout(this._pzT);
+      clearTimeout(this._pzT2);
       this.timers.forEach(clearTimeout);
       if (this.ro) this.ro.disconnect();
       this.root.remove();
@@ -639,6 +844,8 @@
       if (this.o.variant === "chubby") {
         const headArt = this.svg.querySelector(".mm-art-head"), earL = this.svg.querySelector(".mm-earw-l");
         if (headArt && earL && headArt.parentNode && earL.parentNode) earL.parentNode.insertBefore(headArt.parentNode, earL);
+        const patch = this.svg.querySelector(".mm-patch"), top = this.svg.querySelector(".mm-art-hoodtop");
+        if (patch && top && top.parentNode && top.parentNode.parentNode) top.parentNode.parentNode.appendChild(patch);
       }
       this.slots = {};
       ["face", "hat", "eyewear", "scarf", "outfit", "hand", "back", "front", "fx", "cos-head"].forEach((k) => {
@@ -651,11 +858,15 @@
       this._recolorKey = null;
       this._applyColors();
       this._lifeStop();
-      if (this.o.variant === "chubby" && !this.reduce) this._life();
+      if (this.o.variant !== "stand") {
+        this._legsStop();
+        this._legMode = void 0;
+      }
+      if (PHOTO(this.o.variant) && !this.reduce) this._life();
     }
     _applyColors() {
       const v = deriveColors(this.o.colors);
-      if (this.o.persona === "premier") Object.assign(v, this.o.variant === "chubby" ? PREMIER_CHUBBY : PREMIER);
+      if (this.o.persona === "premier") Object.assign(v, PHOTO(this.o.variant) ? PREMIER_CHUBBY : PREMIER);
       if (this.o.cosplay === "glass") Object.assign(v, GLASS);
       Object.entries(v).forEach(([k, x]) => this.root.style.setProperty(k, x));
       const rk = JSON.stringify([this.o.colors, this.o.persona, this.o.cosplay, this.o.variant]);
@@ -680,10 +891,40 @@
       const playful = o.persona === "playful";
       const pl = playful && st.play || {};
       const season = SEASONS[o.season], fest = FESTIVALS[o.festival];
-      const vg = VARIANT_GEO[o.variant] || VARIANT_GEO.L, chubby = o.variant === "chubby";
+      const poseV = o.variant === "pose";
+      const pz = poseV ? o.persona === "playful" && o.state === "idle" ? 4 : POSE_OF[o.state] || 1 : 0;
+      const vg = poseV ? { ...POSE_BASE, ...POSE_GEO[pz] } : VARIANT_GEO[o.variant] || VARIANT_GEO.L, chubby = PHOTO(o.variant), stand = o.variant === "stand";
+      this._pg = vg;
       this._applyColors();
       const anim = pl.anim || st.anim;
-      this.root.className = `mm-root mm-a-${anim} mm-p-${o.persona} mm-v-${o.variant}` + (this.reduce ? " mm-reduce" : "") + (st.ear ? " mm-ear-twitch" : "") + (chubby && EARS[o.state] ? ` mm-ears-${EARS[o.state]}` : "");
+      this.root.className = `mm-root mm-a-${anim} mm-p-${o.persona} mm-v-${o.variant}` + (stand || poseV ? " mm-v-chubby" : "") + (poseV ? ` mm-pz-${pz}` + (vg.open ? "" : " mm-noblink") : "") + (this.reduce ? " mm-reduce" : "") + (st.ear ? " mm-ear-twitch" : "") + (chubby && EARS[o.state] ? ` mm-ears-${EARS[o.state]}` : "");
+      if (chubby) {
+        this._ef = this._ef || "f0";
+        this.root.classList.add("mm-ef-" + this._ef);
+        this._earTo(EAR_FRAME[EARS[o.state]] || "f0");
+      }
+      if (poseV) {
+        clearTimeout(this._pzT);
+        clearTimeout(this._pzT2);
+        const old = this._pz;
+        if (old && old !== pz && !this.reduce) {
+          this.root.classList.remove("mm-pz-" + pz);
+          this.root.classList.add("mm-pz-" + old, "mm-pzout");
+          this._pzT = setTimeout(() => {
+            this.root.classList.remove("mm-pz-" + old, "mm-pzout");
+            this.root.classList.add("mm-pz-" + pz, "mm-pzin");
+            this._pzT2 = setTimeout(() => this.root.classList.remove("mm-pzin"), 440);
+          }, 130);
+        }
+        this._pz = pz;
+      }
+      if (stand) {
+        this._lf = this._lf || "f0";
+        this.root.classList.add("mm-lf-on-" + this._lf);
+        const g = GESTURE[o.state];
+        if (g) this.root.classList.add("mm-g-" + g);
+        this._legsTo(STEPS[o.state] || null);
+      }
       this._face = chubby ? { ...st.face, ...pl.face ? {} : CUTE[o.state] || {}, ...pl.face || {} } : { ...st.face, ...pl.face || {} };
       this._paintFace();
       let hatKey = null, eyeKey = null, scarf = false;
@@ -697,17 +938,19 @@
       }
       if (!hatKey && o.cosplay === "bebe") hatKey = "halo";
       const hat = hatKey && HATS[hatKey];
-      this.slots.hat.innerHTML = hat ? `<g transform="${vg.hat || "translate(178 52)"}">${hat.svg}</g>` : "";
-      this.root.classList.toggle("mm-hide-bow", !!(chubby && hat && hatKey !== "halo" && hatKey !== "headband"));
+      this.slots.hat.innerHTML = hat ? chubby && CHUBBY_HATS[hatKey] ? `<g class="mm-chat"${vg.hatMap ? ` transform="${vg.hatMap}"` : ""}>${CHUBBY_HATS[hatKey]}</g>` : `<g transform="${vg.hat || "translate(178 52)"}">${hat.svg}</g>` : "";
+      this.root.classList.toggle("mm-hide-bow", false);
       const ant = this._q(".mm-antenna");
       if (ant) ant.style.display = hat && hatKey !== "headband" && hatKey !== "headset" ? "none" : "";
       const up = eyeKey === "sunglasses" && !isTime;
       const ewT = up ? vg.sunglasses || "translate(178 104) scale(.78) translate(-178 -150)" : vg.eyewear;
       this.slots.eyewear.innerHTML = eyeKey ? ewT ? `<g transform="${ewT}">${EYEWEAR[eyeKey]}</g>` : EYEWEAR[eyeKey] : "";
-      this.slots.scarf.innerHTML = scarf ? vg.scarf ? `<g transform="${vg.scarf}">${SCARF}</g>` : SCARF : "";
-      let outfit = o.persona === "pro" ? chubby ? CHUBBY_SUIT : SUIT : "";
+      this.slots.scarf.innerHTML = scarf && vg.scarf !== null ? vg.scarf ? `<g transform="${vg.scarf}">${SCARF}</g>` : SCARF : "";
+      let outfit = o.persona === "pro" ? poseV ? vg.suit || "" : stand ? STAND_SUIT : chubby ? CHUBBY_SUIT : SUIT : "";
       let cosHead = "";
-      if (o.cosplay === "bebe") {
+      if (o.cosplay === "bebe" && chubby) {
+        cosHead = vg.hatMap ? `<g transform="${vg.hatMap}">${CHUBBY_WOOL}</g>` : CHUBBY_WOOL;
+      } else if (o.cosplay === "bebe") {
         const { cx, cy, r } = vg.head;
         for (let i = 0; i < 18; i++) {
           const a = i / 18 * Math.PI * 2, rr = r + 2 + i % 3 * 2;
@@ -730,7 +973,13 @@
         front = `<g transform="${vg.laptop || "translate(178 352)"}">${ITEMS.laptop}</g>`;
         item = null;
       }
-      if (vg.ground) {
+      if (vg.inhand) {
+        if (item && item !== "_wave" && ITEMS[item]) {
+          const [ix, iy] = vg.item;
+          hand = `<g transform="translate(${ix} ${iy}) scale(.72)">${ITEMS[item]}</g>`;
+          this.root.classList.add("mm-g-hold");
+        }
+      } else if (vg.ground) {
         if (item && item !== "_wave" && ITEMS[item]) {
           const [ix, iy] = vg.item;
           hand = `<g class="mm-handg mm-ground"><g transform="translate(${ix} ${iy}) scale(.9)">${ITEMS[item]}</g></g>`;
@@ -860,13 +1109,26 @@
     }
     _paintFace(over) {
       const f = over ? { ...this._face, ...over } : this._face;
-      const chubby = this.o.variant === "chubby";
-      this.slots.face.innerHTML = chubby ? buildChubbyFace(this.u, f) : buildFace(this.u, f);
+      const chubby = PHOTO(this.o.variant), vg = this._pg || VARIANT_GEO[this.o.variant];
+      if (this.o.variant === "pose") {
+        const g = { ...f };
+        if (!vg.open || !VECTOR_EYES[g.eyes || "open"]) g.eyes = "open";
+        if (!vg.open || g.eyesR && !VECTOR_EYES[g.eyesR]) delete g.eyesR;
+        const vMouth = !!(vg.hasMouth && VECTOR_MOUTH[g.mouth || "w"]);
+        delete g.brow;
+        g.puff = false;
+        this.slots.face.innerHTML = `<g transform="${vg.face}">${buildChubbyFace(this.u, g, { nose: vg.nose, noMouth: !vMouth })}</g>`;
+        this.root.classList.toggle("mm-veyes", vg.open && chubbyVectorEyes(g));
+        this.root.classList.toggle("mm-vmouth", vMouth);
+        return;
+      }
+      this.slots.face.innerHTML = this.o.variant === "stand" ? `<g transform="${vg.face}">${buildChubbyFace(this.u, f, { nose: vg.nose })}</g>` : chubby ? buildChubbyFace(this.u, f) : buildFace(this.u, f);
       if (chubby) this.root.classList.toggle("mm-veyes", chubbyVectorEyes(f));
     }
     /* Mèo ú: nhuộm lại áo / nơ (hoặc cả con khi Thân kính) bằng canvas – chỉ chạy khi đổi màu */
     _recolorArt() {
-      if (this.o.variant !== "chubby" || typeof document === "undefined") return;
+      if (!PHOTO(this.o.variant) || typeof document === "undefined") return;
+      const REF = this.o.variant === "pose" ? POSE_REF : this.o.variant === "stand" ? STAND_ART_REF : CHUBBY_ART_REF;
       const cs = getComputedStyle(this.root), get = (k) => cs.getPropertyValue(k).trim();
       const fabric = this.o.colors && this.o.colors.fabric || MIMI_DEFAULT_COLORS.fabric;
       const accent = this.o.colors && this.o.colors.accent || MIMI_DEFAULT_COLORS.accent;
@@ -874,18 +1136,20 @@
       const hoodC = p === "pro" ? get("--mm-d") : p === "premier" ? "#6F2A62" : fabric.toUpperCase() === MIMI_DEFAULT_COLORS.fabric.toUpperCase() ? null : fabric;
       const bowC = p === "premier" ? "#DAA730" : accent.toUpperCase() === MIMI_DEFAULT_COLORS.accent.toUpperCase() ? null : accent;
       const plan = {
-        hood: hoodC && { color: hoodC, ref: CHUBBY_ART_REF.hood, mode: "hue" },
-        hoodtop: hoodC && { color: hoodC, ref: CHUBBY_ART_REF.hood, mode: "hue" },
-        bow: bowC && { color: bowC, ref: CHUBBY_ART_REF.bow, mode: "hue" }
+        hood: hoodC && { color: hoodC, ref: REF.hood, mode: "hue" },
+        hoodtop: hoodC && { color: hoodC, ref: REF.hood, mode: "hue" },
+        cuffL: hoodC && { color: hoodC, ref: REF.hood, mode: "hue" },
+        cuffR: hoodC && { color: hoodC, ref: REF.hood, mode: "hue" },
+        bow: bowC && { color: bowC, ref: REF.bow, mode: "hue" }
       };
-      if (glass) ["body", "hood", "tail", "earL", "earR", "head", "hoodtop", "bow", "eyepatch"].forEach((n) => {
-        plan[n] = { color: "#BFE3FA", ref: [235, 170, 110], mode: "all" };
+      if (glass) this.svg.querySelectorAll("image.mm-art").forEach((el) => {
+        plan[el.getAttribute("data-layer")] = { color: "#BFE3FA", ref: [235, 170, 110], mode: "all" };
       });
       const job = this._recolorJob = (this._recolorJob || 0) + 1;
       this.svg.querySelectorAll("image.mm-art").forEach((el) => {
         const n = el.getAttribute("data-layer");
         const orig = el.__orig || (el.__orig = el.getAttribute("href"));
-        const pl = plan[n];
+        const pl = plan[n] || (n.startsWith("ht_") ? plan.head : n.endsWith("_hood") ? plan.hood : n.endsWith("_bow") ? plan.bow : null);
         if (!pl) {
           if (el.getAttribute("href") !== orig) el.setAttribute("href", orig);
           return;
@@ -919,11 +1183,14 @@
         this.root.style.setProperty("--mm-gx", (home ? 0 : rnd(-3.6, 3.6)).toFixed(1) + "px");
         this.root.style.setProperty("--mm-gy", (home ? 0 : rnd(-2.4, 2)).toFixed(1) + "px");
       }, 1400, 3800);
-      loop(() => flash(Math.random() < 0.5 ? "mm-flick-l" : "mm-flick-r", 520), 4e3, 9e3);
+      loop(() => this._earFlick(Math.random() < 0.5 ? "fl" : "fr"), 4e3, 9e3);
       loop(() => {
         if (this.o.state !== "idle" || this.playTimer) return;
-        const q = QUIRKS[Math.floor(Math.random() * QUIRKS.length)];
+        const QS = this.o.variant === "pose" ? ["slow", "curious", "wag", "hop", "wag"] : QUIRKS;
+        const q = QS[Math.floor(Math.random() * QS.length)];
         if (q === "slow") flash("mm-q-slow", 1700);
+        else if (q === "wag") flash("mm-q-wag", 1500);
+        else if (q === "hop") flash("mm-q-hop", 600);
         else if (q === "curious") {
           flash("mm-q-tilt", 1800);
           this._stateFx("q");
@@ -939,6 +1206,71 @@
     _lifeStop() {
       (this.life || []).forEach(clearTimeout);
       this.life = [];
+    }
+    /* Mèo đứng: khung chân – bước luân phiên (step), nhón một nhịp (hop), đứng yên (null) */
+    _setLF(f) {
+      if (this._lf) this.root.classList.remove("mm-lf-on-" + this._lf);
+      this._lf = f;
+      this.root.classList.add("mm-lf-on-" + f);
+    }
+    _legsStop() {
+      clearInterval(this._legI);
+      this._legI = null;
+      (this._legT || []).forEach(clearTimeout);
+      this._legT = [];
+    }
+    _legsTo(mode) {
+      if (mode === this._legMode) return;
+      this._legsStop();
+      this._legMode = mode;
+      if (!mode || this.reduce) {
+        this._setLF("f0");
+        return;
+      }
+      if (mode === "step") {
+        let k = 0;
+        const seq = ["L", "f0", "R", "f0"];
+        this._setLF("L");
+        this._legI = setInterval(() => this._setLF(seq[++k % 4]), 170);
+        return;
+      }
+      if (mode === "hop") {
+        const seq = ["B", "f0", "B", "f0"];
+        seq.forEach((f, i) => this._legT.push(setTimeout(() => this._setLF(f), i * 150)));
+      }
+    }
+    /* khung tai: chuyển từng bước f0 ↔ d1 ↔ d2 cho tai cụp từ từ */
+    _setEF(f) {
+      if (this._ef) this.root.classList.remove("mm-ef-" + this._ef);
+      this._ef = f;
+      this.root.classList.add("mm-ef-" + f);
+    }
+    _earStop() {
+      (this._earT || []).forEach(clearTimeout);
+      this._earT = [];
+    }
+    _earTo(target) {
+      this._earStop();
+      const cur = this._ef || "f0";
+      if (cur === target) return;
+      let path = [target];
+      if (!this.reduce) {
+        if (target === "d2" && cur !== "d1") path = ["d1", "d2"];
+        else if (cur === "d2" && target !== "d1") path = ["d1", target];
+      }
+      path.forEach((f, i) => {
+        const t = setTimeout(() => this._setEF(f), i * 90);
+        this._earT.push(t);
+      });
+    }
+    _earFlick(f) {
+      if ((this._ef || "f0") !== "f0" || this._earT && this._earT.length) return;
+      this._setEF(f);
+      const t = setTimeout(() => {
+        this._earT = [];
+        if (this._ef === f) this._setEF("f0");
+      }, this.o.variant === "pose" ? 520 : 150);
+      this._earT = [t];
     }
     _clearFx() {
       clearInterval(this.fxTimer);
