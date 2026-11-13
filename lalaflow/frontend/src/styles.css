@@ -531,6 +531,8 @@ p { margin: 0; }
 .shelf-pick { justify-self: start; margin-left: calc(30px + .4rem); min-height: 40px; padding: .35rem .9rem; font: 700 .9rem var(--font-sign); color: var(--door-deep); background: #fff; border: 2px solid var(--wood-light); border-radius: 999px; cursor: pointer; }
 .shelf-pick:hover { border-color: var(--wood-dark); }
 .shelf-pick.is-on { color: #fff; background: var(--door); border-color: var(--wood-dark); }
+.assistant-stage { flex: none; display: flex; justify-content: center; padding: .35rem 1rem 0; border-bottom: 2px dashed var(--wood-light); }
+.assistant-stage-mimi { width: clamp(100px, 16vh, 150px); }
 .answer-inline-products { display: none; }
 @media (max-width: 960px) {
   .assistant-page { grid-template-columns: minmax(300px, 24rem) minmax(0, 1fr); }
@@ -542,6 +544,7 @@ p { margin: 0; }
   /* The panel is already full screen on a phone. */
   .assistant-shelf, .assistant-shelf.is-empty, .shelf-pick, .chat-expand { display: none; }
   .answer-inline-products { display: grid; gap: .45rem; margin-left: calc(30px + .4rem); }
+  .assistant-stage-mimi { width: 88px; }
 }
 
 /* popup as a hanging wooden sign */

@@ -342,6 +342,44 @@ local 200 · ngrok 200 · đang phục vụ index-Bi-rZSxJ.css
 **Chưa kiểm trên iPhone thật.** Tiêu chí 1 bảo đảm đuôi, tay, chân không còn mất. Còn việc Safari có chạy được hoà khung (đuôi
 vẫy, tay vẫy) sau khi đổi sang longhand hay không thì cần người dùng xem trên máy.
 
+## Phần 9 (2026-11-13) — Miệng nói trên trang /tro-ly
+
+Người dùng báo: ở `/tro-ly`, khi Mimi đọc câu trả lời thì miệng không đóng mở.
+
+Nguyên nhân:
+- Trang `/tro-ly` không có Mimi động nào. Chỉ có đầu tĩnh 36px (`MimiFace`) ở thanh tiêu đề và cạnh mỗi tin nhắn.
+- Miệng nói chỉ có ở Mimi động, khi trạng thái là `talking`.
+- Ngoài ra, phản ứng sau câu trả lời (`happy`/`wink`, 3 giây) được ưu tiên hơn `talking`. Vì vậy ở màn hình "Nói với Mimi",
+  miệng có thể bắt đầu cử động trễ hơn giọng nói tới khoảng 3 giây.
+
+Người dùng chọn: thêm một Mimi động lớn vào trang.
+
+Tiêu chí:
+1. `/tro-ly` có Mimi động dưới thanh tiêu đề, dùng `assistant.mimiState` và chọc được.
+2. Đang đọc to thì `state=talking`, có `.mimi-talking` và hàm chạy `mimi-jaw`. Đọc xong thì mất cả hai.
+3. Đang đọc thì `talking` thắng phản ứng sau câu trả lời.
+4. Bố cục ổn ở 390px và 1280px. Build qua.
+
+Thay đổi:
+- `pages/Assistant.jsx`: thêm `.assistant-stage` chứa `PokableMimi`.
+- `styles.css`: `.assistant-stage` và `.assistant-stage-mimi` (rộng 100–150px; trên điện thoại 88px).
+- `useAssistantChat.js`: trong `useMimiMood`, `speaking` xét sau `moment`.
+
+```
+npm run build: ✓ built in 1.70s
+talk_page_check.py (bật đọc to, hỏi "Chào Mimi, shop có giấy dán tường không?")
+390px  before idle box [88, 90] | 0.0 thinking | 1.6 searching | 4.1 happy | 7.1 idle | 15.7 talking
+       16.4 talking mouth=True jaw=mimi-jaw | 43.1 idle mouth=False jaw=None
+1280px before idle box [135, 138] | 4.3 happy | 16.0 talking | 16.6 mouth=True jaw=mimi-jaw | 44.5 idle mouth=False
+Ảnh talkpage-390.png: miệng mở trên Mimi ở sân khấu; talkpage-full-1280.png: bố cục ổn.
+```
+
+Ghi chú:
+- Bộ đếm "audio đang phát" của script không bắt được thẻ audio, nên độ trễ giữa giọng và miệng không đo trực tiếp. Miệng
+  bật 0,6–0,7 giây sau khi vào `talking` (đúng `POSE_SETTLE_MS` = 600 ms).
+- Từ lúc có câu trả lời (4 giây) đến lúc bắt đầu đọc (16 giây) mất khoảng 12 giây, do tạo giọng đọc cho cả câu trả lời dài.
+  Việc này ngoài phạm vi phần này.
+
 ## Để sau
 
 - **Bundle JS giờ 1,85 MB (gzip 1,08 MB), trước khi có mèo là 479 kB**, vì ảnh của kit nằm trong `mimi-svg.js`, mọi trang

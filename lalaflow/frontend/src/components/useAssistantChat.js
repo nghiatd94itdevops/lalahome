@@ -102,8 +102,9 @@ function useMimiMood({ active, busy, listening, speaking }) {
   let state = "idle";
   if (dozing) state = "sleep";
   if (listening) state = "listening";
-  if (speaking) state = "talking";
   if (moment) state = moment.state;
+  // Her voice starts while the reaction to the answer is still showing; a moving mouth matters more than the pose.
+  if (speaking) state = "talking";
   if (busy) state = searching ? "searching" : "thinking";
   return { state, flash };
 }

@@ -4,6 +4,7 @@ import { money } from "../api.js";
 import { useSeo } from "../seo.js";
 import { primaryImage, ProductImage, RatingSummary, RollSize, StatusPill } from "../components/Cards.jsx";
 import { AssistantHead, ChatComposer, ChatProducts, ChatThread, chooserFor, isChoice, SuggestionLabel, useFollowLatest } from "../components/ChatAssistant.jsx";
+import { PokableMimi } from "../components/Mimi.jsx";
 import { PHONE_QUERY } from "../components/Shell.jsx";
 
 const IN_STOCK = "Có sẵn";
@@ -126,6 +127,10 @@ export default function AssistantPage({ content, products, assistant, onTalk }) 
     <div className="assistant-page">
       <section className="assistant-chat" aria-label="Trò chuyện với trợ lý AI">
         <AssistantHead assistant={assistant} onTalk={onTalk} />
+        {/* The head's avatar is a still drawing; this Mimi acts out the chat, so her mouth moves while she reads aloud. */}
+        <div className="assistant-stage">
+          <PokableMimi state={assistant.mimiState} onPoke={assistant.pokeMimi} className="assistant-stage-mimi" />
+        </div>
         <ChatThread
           assistant={assistant}
           listRef={listRef}
