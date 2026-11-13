@@ -360,8 +360,11 @@ p { margin: 0; }
 .mimi[data-dance="on"] { transform-origin: 50% 100%; animation: mimi-dance .5s ease-in-out infinite; }
 @keyframes mimi-dance { 0%, 100% { transform: translateY(0) scale(1.03, .97); } 45% { transform: translateY(-5%) scale(.98, 1.03); } }
 /* The kit swaps tail, paw and leg frames in steps (8 frames over 0.7–1.6 s, about 5–11 a second), which reads as
-   jerky. Here each frame fades in over the one before it instead; delays put frame N in slot N of the cycle. */
-.mimi[data-charm="pose"] :is(.mm-qk-t, .mm-qk-p, .mm-qk-f, .mm-qk-g) { visibility: visible !important; opacity: 0; animation: mimi-xfade var(--qd, 1.6s) linear infinite !important; }
+   jerky. Here each frame fades in over the one before it instead; delays put frame N in slot N of the cycle.
+   Frame 0 stays opaque under the fade so the tail and paws never vanish where the fade does not run (they did on
+   iPhone Safari); a running animation overrides that opacity. Longhands keep var() out of the animation shorthand. */
+.mimi[data-charm="pose"] :is(.mm-qk-t, .mm-qk-p, .mm-qk-f, .mm-qk-g) { visibility: visible !important; opacity: 0; animation-name: mimi-xfade !important; animation-duration: var(--qd, 1.6s) !important; animation-timing-function: linear !important; animation-iteration-count: infinite !important; }
+.mimi[data-charm="pose"] :is(.mm-qk-t, .mm-qk-p, .mm-qk-f, .mm-qk-g).mm-qn-0 { opacity: 1; }
 @keyframes mimi-xfade { 0%, 12.5% { opacity: 1; } 17.5%, 95% { opacity: 0; } 100% { opacity: 1; } }
 .mimi[data-charm="pose"] .mm-qn-0 { animation-delay: calc(var(--qd, 1.6s) * -1) !important; }
 .mimi[data-charm="pose"] .mm-qn-1 { animation-delay: calc(var(--qd, 1.6s) * -.875) !important; }

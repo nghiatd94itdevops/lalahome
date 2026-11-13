@@ -306,6 +306,42 @@ chubby_check.mjs: all checks passed · pose_charm_check.mjs: 8 PASS · talk_chec
 softbody_check.mjs: PASS no-preference: bands 147, rigged 5, moving 4 · PASS reduce: bands 0
 ```
 
+## Phần 8 (2026-11-13) — Mất đuôi, tay, chân trên iPhone
+
+Người dùng chụp màn hình iPhone: Mimi trang chủ lúc 12:00 ("Ăn trưa", tư thế 7) không có đuôi. Ở nhiều trạng thái khác cũng
+mất tay và chân.
+
+Nguyên nhân:
+- Chrome trên máy thì vẫn thấy đuôi.
+- Lớp hoà khung của site (`mimi-xfade`, phần 6) đặt mọi khung đuôi, tay, chân (`mm-qk-t/p/f/g`) ở `opacity: 0`. Các khung
+  chỉ hiện khi animation chạy, nên trình duyệt nào không chạy animation đó thì đuôi, tay, chân tàng hình hết.
+- Kit gốc thì ngược lại: khung 0 luôn hiện.
+- Chưa xác định chắc vì sao Safari không chạy. Nghi do `var()` trong cách viết gộp `animation: … var(--qd) …`. Máy này không
+  có WebKit để thử.
+
+Tiêu chí:
+1. Animation không chạy (giả lập bằng `animation: none`) thì đuôi, tay vẫy vẫn hiện (độ hiện = 1) ở mọi tư thế đang hiện.
+2. Animation chạy thì vẫn hoà khung như cũ: khung 0 vẫn mờ về 0, không đứng đè thành hai đuôi.
+3. Build qua, bản mới chạy qua :8000 và ngrok.
+
+Thay đổi (`styles.css`):
+- Khung 0 có `opacity: 1` làm nền. Animation đang chạy thì ghi đè giá trị này.
+- Đổi cách viết gộp `animation` sang các thuộc tính riêng (`animation-name`, `animation-duration`, …).
+
+```
+frames_check.py (Chromium 390px, so mỗi phần: tổng độ hiện các khung)
+BẢN CŨ  /           fade off: {'noon/pose7/t': 0, 'idle/pose1/t': 0, 'idle/pose2/t': 0, 'idle/pose2/p': 0}
+BẢN CŨ  /gioi-thieu fade off: {'greet/pose2/t': 0, 'greet/pose2/p': 0, 'searching/pose3/t': 0, 'idle/pose1/t': 0}
+npm run build: ✓ built in 2.01s
+BẢN MỚI /           fade on thấp nhất: {'noon/pose7/t': 1, 'idle/pose1/t': 1} | fade off: {'noon/pose7/t': 1, 'idle/pose4/t': 1, 'idle/pose1/t': 1}
+BẢN MỚI /gioi-thieu fade off: {'greet/pose2/t': 1, 'greet/pose2/p': 1, 'searching/pose3/t': 1, 'idle/pose1/t': 1}
+frames_check2.py fade on: khung 0 thấp nhất t0 = 0, p0 = 0 (vẫn mờ đi, không đứng đè)
+local 200 · ngrok 200 · đang phục vụ index-Bi-rZSxJ.css
+```
+
+**Chưa kiểm trên iPhone thật.** Tiêu chí 1 bảo đảm đuôi, tay, chân không còn mất. Còn việc Safari có chạy được hoà khung (đuôi
+vẫy, tay vẫy) sau khi đổi sang longhand hay không thì cần người dùng xem trên máy.
+
 ## Để sau
 
 - **Bundle JS giờ 1,85 MB (gzip 1,08 MB), trước khi có mèo là 479 kB**, vì ảnh của kit nằm trong `mimi-svg.js`, mọi trang
