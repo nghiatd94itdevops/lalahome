@@ -4,7 +4,7 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 // site shows the kit's 12-pose cat ("pose").
 import "../../../../LaLaHome/LaLaHome/mimi-svg.js";
 import "../../../../LaLaHome/LaLaHome/mimi-bot.js";
-import { charmFor, startCharm, startIdleGestures, startTalkingMouth } from "./mimiCharm.js";
+import { charmFor, faceMotionFor, startBlinking, startCharm, startIdleGestures, startTalkingMouth } from "./mimiCharm.js";
 import { rigPoseCat } from "./mimiRig.js";
 
 const PERSONA = "friendly";
@@ -87,6 +87,7 @@ export function Mimi({ state = "idle", season = null, festival = null, celebrate
   const latestState = useRef(state);
   const charmControl = useRef(null);
   const [charm] = useState(() => charmFor(VARIANT));
+  const [faceMotion] = useState(() => faceMotionFor(VARIANT));
 
   useEffect(() => {
     // The speech bubble stays off: the owner asked for no message bubble above the mascot.
@@ -95,7 +96,9 @@ export function Mimi({ state = "idle", season = null, festival = null, celebrate
     const control = charm ? startCharm(instance, charm, host.current, () => latestState.current) : null;
     charmControl.current = control;
     const stopRig = charm?.softBody ? rigPoseCat(instance) : null;
+    const stopBlinking = faceMotion?.siteBlinks ? startBlinking(instance) : null;
     return () => {
+      stopBlinking?.();
       stopRig?.();
       control?.stop();
       charmControl.current = null;
@@ -113,7 +116,7 @@ export function Mimi({ state = "idle", season = null, festival = null, celebrate
     bot.current?.setState(state);
   }, [state]);
   useEffect(() => (charm && state === "idle" ? startIdleGestures(charmControl.current, charm) : undefined), [charm, state]);
-  useEffect(() => (charm?.talkingMouth && state === "talking" ? startTalkingMouth(bot.current) : undefined), [charm, state]);
+  useEffect(() => (faceMotion?.talkingMouth && state === "talking" ? startTalkingMouth(bot.current) : undefined), [faceMotion, state]);
   useEffect(() => { bot.current?.setSeason(season); }, [season]);
   useEffect(() => { bot.current?.setFestival(festival); }, [festival]);
   useEffect(() => { if (celebrate) bot.current?.celebrate(); }, [celebrate]);

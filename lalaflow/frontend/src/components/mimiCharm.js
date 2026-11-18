@@ -36,6 +36,12 @@ const TALKING_MOUTH = `<g class="mimi-talk" transform="scale(1.45)">
 <g class="mimi-jaw"><path d="M-13 5 Q0 27 13 5 Z" style="fill:#9B3B33;stroke:#7A3A1C;stroke-width:1.7;stroke-linejoin:round"/>
 <path d="M-6.5 16 Q0 10 6.5 16 Q4.5 21.5 0 21.5 Q-4.5 21.5 -6.5 16 Z" style="fill:#F28C8C"/></g></g>`;
 
+// The kit's own blink rhythm (mimi-bot.js _life), copied for when the site has to blink in its place.
+const BLINK_GAP_MS = [2600, 5600];
+const BLINK_MS = 140;
+const DOUBLE_BLINK_CHANCE = 0.25;
+const DOUBLE_BLINK_DELAY_MS = 260;
+
 const HOVER_COOLDOWN_MS = 4000;
 // Moods where a cheerful reaction would read as not listening.
 const QUIET_STATES = new Set(["sad", "error", "warning", "sleep"]);
@@ -45,10 +51,28 @@ const SETTLE_MS = 1;
 const between = ([min, max]) => min + Math.random() * (max - min);
 const pickFrom = (list) => list[Math.floor(Math.random() * list.length)];
 
+const prefersReducedMotion = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
+
 // The charm settings for a variant, or null when it has none or the visitor asked for reduced motion.
 export function charmFor(variant) {
-  if (matchMedia("(prefers-reduced-motion: reduce)").matches) return null;
+  if (prefersReducedMotion()) return null;
   return CHARMS[variant] || null;
+}
+
+// Face movements kept even when the visitor asked for reduced motion: a blink and a talking mouth move nothing across
+// the screen, and without them she reads as a still picture. The kit stops its own blinking under reduced motion, so
+// then the site blinks in its place. Null for a variant without a talking mouth.
+export function faceMotionFor(variant) {
+  if (!CHARMS[variant]?.talkingMouth) return null;
+  return { talkingMouth: true, siteBlinks: prefersReducedMotion() };
+}
+
+// Blinks the way the kit does when it is animating freely; returns a function that stops it.
+export function startBlinking(bot) {
+  return repeatEvery(BLINK_GAP_MS, () => {
+    flashClass(bot, "mm-blinking", BLINK_MS);
+    if (Math.random() < DOUBLE_BLINK_CHANCE) setTimeout(() => bot.root && flashClass(bot, "mm-blinking", BLINK_MS), DOUBLE_BLINK_DELAY_MS);
+  });
 }
 
 function repeatEvery(gapMs, action) {

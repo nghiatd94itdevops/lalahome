@@ -380,6 +380,56 @@ Ghi chú:
 - Từ lúc có câu trả lời (4 giây) đến lúc bắt đầu đọc (16 giây) mất khoảng 12 giây, do tạo giọng đọc cho cả câu trả lời dài.
   Việc này ngoài phạm vi phần này.
 
+## Phần 10 (2026-11-13) — Chớp mắt và miệng nói khi máy bật giảm chuyển động
+
+Người dùng báo mèo không chớp mắt, không mở miệng, không thấy chuyển động thêm.
+
+Nguyên nhân:
+- Windows trên máy người dùng tắt "Animation effects" (`SystemParametersInfo(SPI_GETCLIENTAREAANIMATION)` = False), nên
+  Chrome báo `prefers-reduced-motion: reduce`.
+- Ở chế độ này, kit tắt chớp mắt (`if (this.reduce)`) và site tắt toàn bộ lớp charm, kể cả miệng nói.
+- Các bài kiểm trước đều ép `no-preference`, nên không bắt được lỗi này.
+
+```
+reduce_probe.mjs (trước khi sửa, Chrome không giả lập): reduce = true | mm-reduce on 3 / 3 | blink seen in 10s: false
+```
+
+Tiêu chí:
+1. Khi giảm chuyển động: mèo vẫn chớp mắt, và mắt khép thật sự hiện ra (≥ 2 lần trong 15 giây).
+2. Khi giảm chuyển động và đang `talking`: có miệng riêng, hàm mở/đóng; nói xong thì mất.
+3. Khi giảm chuyển động: không đổi dáng, không nhún, không thân mềm.
+4. Khi không giảm chuyển động: như cũ, các bài kiểm cũ vẫn qua.
+
+Thay đổi (không sửa kit):
+- `mimiCharm.js`:
+  - `faceMotionFor(variant)` trả về `{ talkingMouth, siteBlinks }`, tách khỏi `charmFor`.
+  - `startBlinking(bot)` bật class `mm-blinking` của kit theo đúng nhịp của kit: 2,6–5,6 giây, 140 ms, 25% chớp đôi.
+- `Mimi.jsx`: site tự chớp mắt khi `siteBlinks`; miệng nói theo `faceMotion` thay vì `charm`.
+
+```
+npm run build: ✓ built in 1.67s   index-BCIIYccK.js 1,861.65 kB │ gzip: 1,086.65 kB
+
+reduce_probe.mjs (Chrome không giả lập, dùng cài đặt Windows của máy)
+PASS OS asks for reduced motion {"reduce":true}
+PASS eyes visibly shut at least twice in ~15s {"blinksShown":5}
+PASS no pose changes, dance or soft body {"poses":["mm-pz-7"],"danced":0,"bands":0}
+PASS no console errors []
+
+talk_check_reduce.mjs (giả lập reduce)
+PASS mouth while talking {"state":"talking","mouth":true,"patch":true,"jawAnim":"mimi-jaw","jawScale":"matrix(1, 0, 0, 0.451477, 0, 0)"}
+PASS gone after talking {"state":"idle","mouth":false,"patch":false,"jawAnim":null,"jawScale":null}
+PASS no console errors []
+
+Không giảm chuyển động (như cũ):
+chubby_check.mjs: all checks passed · pose_charm_check.mjs: 8 PASS (có "reduced motion: no charm")
+softbody_check.mjs: PASS no-preference bands 147 · PASS reduce bands 0
+talk_check.mjs: all checks passed · fidget_check.mjs: PASS ["mm-blinking","mm-q-wag","mm-q-hop","mm-q-tilt"]
+fps_settled.mjs: 1280 {"fps":60,"worstFrameMs":17} · 390 {"fps":60,"worstFrameMs":17}
+```
+
+Chưa làm: `talk_check_reduce` không chạy trên bản trước khi sửa. Mắt khép chỉ kiểm bằng `display` của miếng che mắt, chưa
+chụp ảnh. Đuôi vẫy, làm điệu và thân mềm vẫn tắt khi giảm chuyển động, theo đúng ý người dùng đã chọn.
+
 ## Để sau
 
 - **Bundle JS giờ 1,85 MB (gzip 1,08 MB), trước khi có mèo là 479 kB**, vì ảnh của kit nằm trong `mimi-svg.js`, mọi trang
